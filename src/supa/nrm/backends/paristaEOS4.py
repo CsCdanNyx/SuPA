@@ -112,29 +112,27 @@ class Backend(BaseBackend):
         self.backend_settings = BackendSettings(_env_file=(env_file := find_file("paristaEOS4.env")))
         self.log.info("Read backend properties", path=str(env_file))
 
-    def _get_ssh_shell(self) -> None:
+    def _get_ssh_client(self) -> None:
         self.sshclient = paramiko.SSHClient()
         self.sshclient.load_system_host_keys()
         self.sshclient.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         privkey = None
 
+        if self.backend_settings.ssh_private_key_path:  # self.public_key_path
+            if os.path.exists(self.backend_settings.ssh_private_key_path):  # and os.path.exists(self.public_key_path):
+                privkey = paramiko.RSAKey.from_private_key_file(self.backend_settings.ssh_private_key_path)
+
+            elif os.path.exists(os.path.expanduser(self.backend_settings.ssh_private_key_path)):
+                privkey = paramiko.RSAKey.from_private_key_file(
+                    os.path.expanduser(self.backend_settings.ssh_private_key_path)
+                )
+
+            else:
+                reason = "Incorrect private key path or file does not exist"
+                self.log.warning("failed to initialise SSH client", reason=reason)
+                raise NsiException(GenericRmError, reason)
+
         try:
-            if self.backend_settings.ssh_private_key_path:  # self.public_key_path
-                if os.path.exists(
-                    self.backend_settings.ssh_private_key_path
-                ):  # and os.path.exists(self.public_key_path):
-                    privkey = paramiko.RSAKey.from_private_key_file(self.backend_settings.ssh_private_key_path)
-
-                elif os.path.exists(os.path.expanduser(self.backend_settings.ssh_private_key_path)):
-                    privkey = paramiko.RSAKey.from_private_key_file(
-                        os.path.expanduser(self.backend_settings.ssh_private_key_path)
-                    )
-
-                else:
-                    reason = "Incorrect private key path or file does not exist"
-                    self.log.warning("failed to initialise SSH client", reason=reason)
-                    raise NsiException(GenericRmError, reason)
-
             if privkey:
                 self.sshclient.connect(
                     hostname=self.backend_settings.ssh_hostname,
@@ -155,35 +153,34 @@ class Backend(BaseBackend):
                 raise AssertionError("No keys or password supplied")
 
         except Exception as exception:
-            self.log.warning("SSH client connect failure", reason=str(exception))
+            self.log.warning("Connection Failed", reason=str(exception))
             raise NsiException(GenericRmError, str(exception)) from exception
 
         transport = self.sshclient.get_transport()
         transport.set_keepalive(30)  # type: ignore[union-attr]
-        self.channel = self.sshclient.invoke_shell()
-        self.channel.settimeout(30)
 
-    def _close_ssh_shell(self) -> None:
-        self.channel.close()
+    def _close_ssh_client(self) -> None:
         self.sshclient.close()
 
     def _send_commands(self, commands: List[bytes]) -> None:
         line = b""
         line_termination = b"\r"  # line termination
-        self._get_ssh_shell()
+        self._get_ssh_client()
+        channel = self.sshclient.invoke_shell()
+        channel.settimeout(30)
 
         try:
             self.log.debug("Send command start")
             while not line.decode("utf-8").endswith("prism-core(s1)#"):
-                resp = self.channel.recv(999)
+                resp = channel.recv(999)
                 line += resp
                 self.log.debug(resp)
 
             line = b""
             self.log.debug("Starting Config")
-            self.channel.send(COMMAND_CONFIGURE + line_termination)
+            channel.send(COMMAND_CONFIGURE + line_termination)
             while not line.decode("utf-8").endswith("prism-core(s1)(config)#"):
-                resp = self.channel.recv(999)
+                resp = channel.recv(999)
                 line += resp
                 self.log.debug(resp)
             line = b""
@@ -191,9 +188,9 @@ class Backend(BaseBackend):
             self.log.debug("Entered configure mode")
             for cmd in commands:
                 self.log.debug("CMD> %r" % cmd)
-                self.channel.send(cmd + line_termination)
+                channel.send(cmd + line_termination)
                 while not line.decode("utf-8").endswith(")#"):
-                    resp = self.channel.recv(999)
+                    resp = channel.recv(999)
                     line += resp
                     self.log.debug(resp)
 
@@ -201,26 +198,28 @@ class Backend(BaseBackend):
                 line = b""
 
             self.log.debug("Exiting configure mode")
-            self.channel.send(COMMAND_EXIT + line_termination)
+            channel.send(COMMAND_EXIT + line_termination)
             while not line.decode("utf-8").endswith("prism-core(s1)#"):
-                resp = self.channel.recv(999)
+                resp = channel.recv(999)
                 line += resp
                 self.log.debug(resp)
 
             line = b""
             self.log.debug("Exited configure mode; saving config")
-            self.channel.send(COMMAND_COMMIT + line_termination)
+            channel.send(COMMAND_COMMIT + line_termination)
             while not line.decode("utf-8").endswith("prism-core(s1)#"):
-                resp = self.channel.recv(999)
+                resp = channel.recv(999)
                 line += resp
                 self.log.debug(resp)
 
         except Exception as exception:
-            self._close_ssh_shell()
+            channel.close()
+            self._close_ssh_client()
             self.log.warning("Error sending commands")
             raise NsiException(GenericRmError, "Error sending commands") from exception
 
-        self._close_ssh_shell()
+        channel.close()
+        self._close_ssh_client()
         self.log.debug("Commands successfully committed")
 
     def activate(
