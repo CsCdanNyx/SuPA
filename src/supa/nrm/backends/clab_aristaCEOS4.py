@@ -21,40 +21,23 @@ You need to first enable the switch cli for specified privilege commands level (
 ceos2>enable
 
 To setup a VLAN connection:
-// in sw cli mode on login
-ceos2# configure
-// config for source interface
+// in configure mode on login
+ceos2#configure
 ceos2(config)#vlan {$vlan}
-ceos2(config)#exit
-ceos2(config)#interface {$src_interface}
-ceos2(config-if-{$et?})#switchport mode trunk
-ceos2(config-if-{$et?})#switchport trunk allowed vlan add {$vlan}
-ceos2(config-if-{$et?})#exit
-// redo config for destination interface
-ceos2(config)# interface {$dst_interface}
-ceos2(config-if-{$et?})#switchport mode trunk
-ceos2(config-if-{$et?})#switchport trunk allowed vlan add {$vlan}
-ceos2(config-if-{$et?})#exit
-// Saving config
-ceos2#write
+#exit
+#interface ethernet {$port}
+#switch trunk allowed vlan add {$vlan}
+#exit
+ceos2#copy running-config startup-config
 
 teardown:
-// in sw cli mode on login
-ceos2# configure
-// rm vlan for source interface
-ceos2(config)#interface {$src_interface}
-ceos2(config-if-{$et?})#switchport trunk allowed vlan remove {$vlan}
-ceos2(config-if-{$et?})#exit
-// rm vlan for destination interface
-ceos2(config)#interface {$dst_interface}
-ceos2(config-if-{$et?})#switchport trunk allowed vlan remove {$vlan}
-ceos2(config-if-{$et?})#exit
-// Saving config
-ceos2#write
-
-// no use
-# ceos2(config)#no vlan {$vlan}
-# ceos2#copy running-config startup-config
+ceos2#configure
+#interface ethernet {$port}
+#switch trunk allowed vlan remove {$vlan}
+#exit
+ceos2(config)#no vlan {$vlan}
+#exit
+ceos2#copy running-config startup-config
 
 """
 import os
@@ -62,12 +45,11 @@ from typing import List, Optional
 from uuid import UUID, uuid4
 
 import paramiko
-import yaml
 from pydantic import BaseSettings
 
 from supa.connection.error import GenericRmError
 from supa.job.shared import NsiException
-from supa.nrm.backend import STP, BaseBackend
+from supa.nrm.backend import BaseBackend
 from supa.util.find import find_file
 
 
@@ -84,8 +66,6 @@ class BackendSettings(BaseSettings):
 
     cli_prompt: str = ""
     cli_needs_enable: bool = True
-
-    stps_config: str = "stps_config.yml"
 
 # parametrized commands
 COMMAND_ENABLE = b"enable"
@@ -116,8 +96,8 @@ def _create_configure_commands(source_port: str, dest_port: str, vlan: int) -> L
 
 
 def _create_delete_commands(source_port: str, dest_port: str, vlan: int) -> List[bytes]:
-    intsrc = COMMAND_INTERFACE % source_port.encode("utf-8")
-    intdst = COMMAND_INTERFACE % dest_port.encode("utf-8")
+    intsrc = COMMAND_INTERFACE % source_port
+    intdst = COMMAND_INTERFACE % dest_port
     remvlan = COMMAND_TRUNK_REM_VLAN % vlan
     cmdexit = COMMAND_EXIT
     # deletevlan = COMMAND_DELETE_VLAN % vlan
@@ -131,9 +111,7 @@ class Backend(BaseBackend):
     def __init__(self) -> None:
         """Load properties from 'clab_aristaCEOS4.env'."""
         super(Backend, self).__init__()
-        file_basename = os.path.basename(__file__).split('.')[0]
-        self.configs_dir = file_basename + "_configs"
-        self.backend_settings = BackendSettings(_env_file=(env_file := find_file(self.configs_dir + "/" + file_basename + ".env")))
+        self.backend_settings = BackendSettings(_env_file=(env_file := find_file("clab_aristaCEOS4.env")))
         self.log.info("Read backend properties", path=str(env_file))
 
     def _get_ssh_shell(self) -> None:
@@ -207,7 +185,7 @@ class Backend(BaseBackend):
                     line += resp
                     self.log.debug(resp)
                 line = b""
-
+                
                 # Enable Privileged Mode
                 self.log.debug("Enable Privileged Mode")
                 self.channel.send(COMMAND_ENABLE + line_termination)
@@ -261,7 +239,6 @@ class Backend(BaseBackend):
         self._close_ssh_shell()
         self.log.debug("Commands successfully committed")
 
-
     def activate(
         self,
         connection_id: UUID,
@@ -273,12 +250,16 @@ class Backend(BaseBackend):
         circuit_id: str,
     ) -> Optional[str]:
         """Activate resources."""
-        self.log.info(
-            "Activate resources in clab_aristaCEOS4 NRM", backend=self.__module__, primitive="activate", connection_id=str(connection_id)
-        )
-
         if not src_vlan == dst_vlan:
             raise NsiException(GenericRmError, "VLANs must match")
+        self.log.debug(
+            "Activate() function",
+            src_port_id=src_port_id,
+            dst_port_id=dst_port_id,
+            src_vlan=src_vlan,
+            dst_vlan=dst_vlan,
+            circuit_id=circuit_id,
+        )
         self._send_commands(_create_configure_commands(src_port_id, dst_port_id, dst_vlan))
         circuit_id = uuid4().urn  # dummy circuit id
         self.log.info(
@@ -291,7 +272,6 @@ class Backend(BaseBackend):
         )
         return circuit_id
 
-
     def deactivate(
         self,
         connection_id: UUID,
@@ -303,10 +283,6 @@ class Backend(BaseBackend):
         circuit_id: str,
     ) -> Optional[str]:
         """Deactivate resources."""
-        self.log.info(
-            "Deactivate resources in clab_aristaCEOS4 NRM", backend=self.__module__, primitive="deactivate", connection_id=str(connection_id)
-        )
-
         self._send_commands(_create_delete_commands(src_port_id, dst_port_id, dst_vlan))
         self.log.info(
             "Link down",
@@ -315,146 +291,5 @@ class Backend(BaseBackend):
             src_vlan=src_vlan,
             dst_vlan=dst_vlan,
             circuit_id=circuit_id,
-        )
-        return None
-
-
-    def topology(self) -> List[STP]:
-        """Read STPs from yaml file."""
-        self.log.info("get topology from clab_aristaCEOS4 NRM", backend=self.__module__, primitive="topology")
-
-        stp_list_file = find_file(self.configs_dir + "/" + self.backend_settings.stps_config)
-        self.log.info("Read STPs config", path=str(stp_list_file))
-
-        def _load_stp_from_file(stp_list_file: str) -> List[STP]:
-            with open(stp_list_file, "r") as stps_file:
-                stp_list = [STP(**stp) for stp in yaml.safe_load(stps_file)["stps"]]
-            return stp_list
-
-        stp_list = _load_stp_from_file(stp_list_file)
-        self.log.info("STP list", stp_list=stp_list)
-
-        return stp_list
-
-
-### Not implemented functions, just provide logging. ###
-
-    def reserve(
-        self,
-        connection_id: UUID,
-        bandwidth: int,
-        src_port_id: str,
-        src_vlan: int,
-        dst_port_id: str,
-        dst_vlan: int,
-    ) -> Optional[str]:
-        """Reserve resources in NRM."""
-        self.log.info(
-            "Reserve resources in clab_aristaCEOS4 NRM", backend=self.__module__, primitive="reserve", connection_id=str(connection_id)
-        )
-        return None
-
-    def reserve_timeout(
-        self,
-        connection_id: UUID,
-        bandwidth: int,
-        src_port_id: str,
-        src_vlan: int,
-        dst_port_id: str,
-        dst_vlan: int,
-        circuit_id: str,
-    ) -> Optional[str]:
-        """Reserve timeout resources in NRM."""
-        self.log.info(
-            "Reserve timeout resources in clab_aristaCEOS4 NRM",
-            backend=self.__module__,
-            primitive="reserve_timeout",
-            connection_id=str(connection_id),
-        )
-        return None
-
-    def reserve_commit(
-        self,
-        connection_id: UUID,
-        bandwidth: int,
-        src_port_id: str,
-        src_vlan: int,
-        dst_port_id: str,
-        dst_vlan: int,
-        circuit_id: str,
-    ) -> Optional[str]:
-        """Reserve commit resources in NRM."""
-        self.log.info(
-            "Reserve commit resources in clab_aristaCEOS4 NRM",
-            backend=self.__module__,
-            primitive="reserve_commit",
-            connection_id=str(connection_id),
-        )
-        return None
-
-    def reserve_abort(
-        self,
-        connection_id: UUID,
-        bandwidth: int,
-        src_port_id: str,
-        src_vlan: int,
-        dst_port_id: str,
-        dst_vlan: int,
-        circuit_id: str,
-    ) -> Optional[str]:
-        """Reserve abort resources in NRM."""
-        self.log.info(
-            "Reserve abort resources in clab_aristaCEOS4 NRM",
-            backend=self.__module__,
-            primitive="reserve_abort",
-            connection_id=str(connection_id),
-        )
-        return None
-
-    def provision(
-        self,
-        connection_id: UUID,
-        bandwidth: int,
-        src_port_id: str,
-        src_vlan: int,
-        dst_port_id: str,
-        dst_vlan: int,
-        circuit_id: str,
-    ) -> Optional[str]:
-        """Provision resources in NRM."""
-        self.log.info(
-            "Provision resources in clab_aristaCEOS4 NRM", backend=self.__module__, primitive="provision", connection_id=str(connection_id)
-        )
-        return None
-
-    def release(
-        self,
-        connection_id: UUID,
-        bandwidth: int,
-        src_port_id: str,
-        src_vlan: int,
-        dst_port_id: str,
-        dst_vlan: int,
-        circuit_id: str,
-    ) -> Optional[str]:
-        """Release resources in NRM."""
-        self.log.info(
-            "Release resources in clab_aristaCEOS4 NRM", backend=self.__module__, primitive="release", connection_id=str(connection_id)
-        )
-        return None
-    
-    def terminate(
-        self,
-        connection_id: UUID,
-        bandwidth: int,
-        src_port_id: str,
-        src_vlan: int,
-        dst_port_id: str,
-        dst_vlan: int,
-        circuit_id: str,
-    ) -> Optional[str]:
-        """Terminate resources in NRM."""
-        self.log.info(
-            "Terminate resources in clab_aristaCEOS4 NRM", backend=self.__module__, primitive="terminate", connection_id=str(connection_id)
         )
         return None
