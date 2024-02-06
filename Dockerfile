@@ -12,6 +12,6 @@ FROM base AS final
 COPY . .
 RUN python setup.py gen_code
 RUN python setup.py install
-EXPOSE 8080/tcp 50051/tcp
+EXPOSE 4321/tcp 8080/tcp 50051/tcp
 ENV PYTHONPATH=/usr/local/etc/supa:$BASEDIR/src/supa/nrm/backends
 CMD ["supa", "serve"]
