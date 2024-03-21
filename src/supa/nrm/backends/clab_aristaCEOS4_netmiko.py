@@ -93,6 +93,7 @@ class Backend(BaseBackend):
             'port': self.backend_settings.ssh_port,
             'username': self.backend_settings.ssh_username,
             'password': self.backend_settings.ssh_password,
+            'use_keys': False,
             # 'session_log': 'session.log',
             'timeout': 30,
             'keepalive': 30,
@@ -119,9 +120,7 @@ class Backend(BaseBackend):
         if privkey:
             self.arsita_eos_switch["use_keys"] = True,
             self.arsita_eos_switch["key_file"] = privkey
-        elif self.backend_settings.ssh_password:
-            self.arsita_eos_switch["use_keys"] = False
-        else:
+        elif not self.backend_settings.ssh_password:
             raise AssertionError("No keys or password supplied")
 
 
