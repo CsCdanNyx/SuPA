@@ -54,6 +54,9 @@ COMMAND_EXIT = "exit"
 COMMAND_COMMIT = "write"
 COMMAND_NO_SHUTDOWN = "no shutdown"
 
+# vlan and interface descriptions
+COMMAND_VLAN_NAME = "name %s" % "nsi-supa"
+COMMAND_INT_DESCEIPTION = "description %s" % "nsi-supa's stp."
 
 def _create_configure_commands(source_port: str, dest_port: str, vlan: int) -> List[bytes]:
     createvlan = COMMAND_CREATE_VLAN % vlan
@@ -62,7 +65,9 @@ def _create_configure_commands(source_port: str, dest_port: str, vlan: int) -> L
     modetrunk = COMMAND_MODE_TRUNK
     addvlan = COMMAND_TRUNK_ADD_VLAN % vlan
     cmdexit = COMMAND_EXIT
-    commands = [createvlan, cmdexit, intsrc, modetrunk, addvlan, cmdexit, intdst, modetrunk, addvlan, cmdexit]
+    vlanname= COMMAND_VLAN_NAME
+    intdesc = COMMAND_INT_DESCEIPTION
+    commands = [createvlan, vlanname, cmdexit, intsrc, intdesc, modetrunk, addvlan, cmdexit, intdst, intdesc, modetrunk, addvlan, cmdexit]
     return commands
 
 
@@ -98,7 +103,6 @@ class Backend(BaseBackend):
             'timeout': 30,
             'keepalive': 30,
         }
-
 
 
     def _check_ssh_pass_keys(self) -> None:
