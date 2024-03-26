@@ -162,6 +162,10 @@ class Backend(BaseBackend):
         circuit_id: str,
     ) -> Optional[str]:
         """Activate resources."""
+        self.log.info(
+            "Activate resources in clab_aristaCEOS4_netmiko NRM", backend=self.__module__, primitive="activate", connection_id=str(connection_id)
+        )
+
         if not src_vlan == dst_vlan:
             raise NsiException(GenericRmError, "VLANs must match")
         self._send_commands(_create_configure_commands(src_port_id, dst_port_id, dst_vlan))
@@ -188,6 +192,10 @@ class Backend(BaseBackend):
         circuit_id: str,
     ) -> Optional[str]:
         """Deactivate resources."""
+        self.log.info(
+            "Deactivate resources in clab_aristaCEOS4_netmiko NRM", backend=self.__module__, primitive="deactivate", connection_id=str(connection_id)
+        )
+
         self._send_commands(_create_delete_commands(src_port_id, dst_port_id, dst_vlan))
         self.log.info(
             "Link down",
@@ -202,6 +210,8 @@ class Backend(BaseBackend):
 
     def topology(self) -> List[STP]:
         """Read STPs from yaml file."""
+        self.log.info("get topology from clab_aristaCEOS4_netmiko NRM", backend=self.__module__, primitive="topology")
+
         stp_list_file = find_file(self.configs_dir + "/" + self.backend_settings.stps_config)
         self.log.info("Read STPs config", path=str(stp_list_file))
 
@@ -214,3 +224,126 @@ class Backend(BaseBackend):
         self.log.info("STP list", stp_list=stp_list)
 
         return stp_list
+
+
+### Not implemented functions, just provide logging. ###
+
+    def reserve(
+        self,
+        connection_id: UUID,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+    ) -> Optional[str]:
+        """Reserve resources in NRM."""
+        self.log.info(
+            "Reserve resources in clab_aristaCEOS4_netmiko NRM", backend=self.__module__, primitive="reserve", connection_id=str(connection_id)
+        )
+        return None
+
+    def reserve_timeout(
+        self,
+        connection_id: UUID,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> Optional[str]:
+        """Reserve timeout resources in NRM."""
+        self.log.info(
+            "Reserve timeout resources in clab_aristaCEOS4_netmiko NRM",
+            backend=self.__module__,
+            primitive="reserve_timeout",
+            connection_id=str(connection_id),
+        )
+        return None
+
+    def reserve_commit(
+        self,
+        connection_id: UUID,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> Optional[str]:
+        """Reserve commit resources in NRM."""
+        self.log.info(
+            "Reserve commit resources in clab_aristaCEOS4_netmiko NRM",
+            backend=self.__module__,
+            primitive="reserve_commit",
+            connection_id=str(connection_id),
+        )
+        return None
+
+    def reserve_abort(
+        self,
+        connection_id: UUID,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> Optional[str]:
+        """Reserve abort resources in NRM."""
+        self.log.info(
+            "Reserve abort resources in clab_aristaCEOS4_netmiko NRM",
+            backend=self.__module__,
+            primitive="reserve_abort",
+            connection_id=str(connection_id),
+        )
+        return None
+
+    def provision(
+        self,
+        connection_id: UUID,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> Optional[str]:
+        """Provision resources in NRM."""
+        self.log.info(
+            "Provision resources in clab_aristaCEOS4_netmiko NRM", backend=self.__module__, primitive="provision", connection_id=str(connection_id)
+        )
+        return None
+
+    def release(
+        self,
+        connection_id: UUID,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> Optional[str]:
+        """Release resources in NRM."""
+        self.log.info(
+            "Release resources in clab_aristaCEOS4_netmiko NRM", backend=self.__module__, primitive="release", connection_id=str(connection_id)
+        )
+        return None
+
+    def terminate(
+        self,
+        connection_id: UUID,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> Optional[str]:
+        """Terminate resources in NRM."""
+        self.log.info(
+            "Terminate resources in clab_aristaCEOS4_netmiko NRM", backend=self.__module__, primitive="terminate", connection_id=str(connection_id)
+        )
+        return None
