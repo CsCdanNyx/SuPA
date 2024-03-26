@@ -207,7 +207,7 @@ class Backend(BaseBackend):
                     line += resp
                     self.log.debug(resp)
                 line = b""
-
+                
                 # Enable Privileged Mode
                 self.log.debug("Enable Privileged Mode")
                 self.channel.send(COMMAND_ENABLE + line_termination)
