@@ -15,16 +15,9 @@ stps:
     is_alias_in: my_stp2
     is_alias_out: my_stp2
 
-  - stp_id: my_stp3
-    port_id: ethernet3
-    vlans: "1730"
-    description: "my test stp 3."
-
-  - stp_id: my_stp4
-    port_id: ethernet4
-    vlans: "1731"
-    description: "my test stp 4."
-    is_alias_in: my_stp4
-    is_alias_out: my_stp4
-    bandwidth: 1000
-    enabled: False
+  - stp_id: mren8700
+    port_id: et49/1
+    vlans: "1779-1799"
+    description: "STP to iCAIR OpenNSA icair test."
+    is_alias_in: "icair.org:2013:mren8700:ar100-in"
+    is_alias_out: "icair.org:2013:mren8700:ar100-out"
