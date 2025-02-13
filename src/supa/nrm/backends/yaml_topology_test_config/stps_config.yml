@@ -1,0 +1,16 @@
+stps:
+  - stp_id: my_stp1                  # Required, str, Uniq ID of the STP.
+    port_id: ethernet1                  # Required, str, ID of the corresponding port.
+    vlans: "1728"                    # Required, str, VLANs part of this STP.
+    description: "my test stp 2."         # Optional, str, STP description.
+    is_alias_in: "urn:ogf:network:twaren.nchc.org:2014:topology:starlight-out"         # Optional, str, Inbound STP ID from connected topology.
+    is_alias_out: "urn:ogf:network:twaren.nchc.org:2014:topology:starlight-in"        # Optional, str, Outbound STP ID to connected topology.
+    bandwidth: 1000   # Required, int, Available bandwidth for this STP in Mbps.
+    enabled: True          # Optional, bool, STP status.
+
+  - stp_id: my_stp2
+    port_id: ethernet2
+    vlans: "1779-1799"
+    description: "STP to iCAIR OpenNSA mren8700 ar100 for icair onsa test."
+    is_alias_in: "icair.org:2013:mren8700:ar100-in"
+    is_alias_out: "icair.org:2013:mren8700:ar100-out"
