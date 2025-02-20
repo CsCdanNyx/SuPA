@@ -44,8 +44,7 @@ class Backend(BaseBackend):
         super(Backend, self).__init__()
         file_basename = os.path.basename(__file__).split('.')[0]
         self.configs_dir = file_basename + "_configs"
-        self.backend_settings = BackendSettings(_env_file=(env_file := find_file(self.configs_dir + "/" + file_basename + ".env")))
-        self.log.info("Read backend properties", path=str(env_file))
+        self.backend_settings = BackendSettings()
 
     def activate(
         self,
