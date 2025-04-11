@@ -279,7 +279,7 @@ class Backend(BaseBackend):
 
         if not src_vlan == dst_vlan:
             raise NsiException(GenericRmError, "VLANs must match")
-        
+
         try:
             self._send_commands(_create_configure_commands(src_port_id, dst_port_id, dst_vlan))
             circuit_id = uuid4().urn  # dummy circuit id
@@ -447,7 +447,7 @@ class Backend(BaseBackend):
             "Release resources in aristaEOS4 NRM", backend=self.__module__, primitive="release", connection_id=str(connection_id)
         )
         return None
-    
+
     def terminate(
         self,
         connection_id: UUID,

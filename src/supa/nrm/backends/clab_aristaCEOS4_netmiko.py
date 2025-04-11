@@ -15,8 +15,8 @@ import os
 from typing import List, Optional
 from uuid import UUID, uuid4
 
-from netmiko import ConnectHandler
 import yaml
+from netmiko import ConnectHandler
 from pydantic import BaseSettings
 
 from supa.connection.error import GenericRmError
@@ -146,7 +146,7 @@ class Backend(BaseBackend):
         except Exception as exception:
             self.log.warning("Error sending commands")
             raise NsiException(GenericRmError, "Error sending commands") from exception
-     
+
         self.log.debug("Commands successfully committed")
 
 
