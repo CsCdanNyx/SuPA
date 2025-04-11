@@ -255,8 +255,8 @@ class Backend(BaseBackend):
 
         except Exception as exception:
             self._close_ssh_shell()
-            self.log.warning("Error sending commands")
-            raise NsiException(GenericRmError, "Error sending commands") from exception
+            self.log.warning("Error sending commands", exception=str(exception))
+            raise NsiException(GenericRmError, f"Error sending commands: {str(exception)}") from exception
 
         self._close_ssh_shell()
         self.log.debug("Commands successfully committed")
@@ -279,17 +279,22 @@ class Backend(BaseBackend):
 
         if not src_vlan == dst_vlan:
             raise NsiException(GenericRmError, "VLANs must match")
-        self._send_commands(_create_configure_commands(src_port_id, dst_port_id, dst_vlan))
-        circuit_id = uuid4().urn  # dummy circuit id
-        self.log.info(
-            "Link up",
-            src_port_id=src_port_id,
-            dst_port_id=dst_port_id,
-            src_vlan=src_vlan,
-            dst_vlan=dst_vlan,
-            circuit_id=circuit_id,
-        )
-        return circuit_id
+        
+        try:
+            self._send_commands(_create_configure_commands(src_port_id, dst_port_id, dst_vlan))
+            circuit_id = uuid4().urn  # dummy circuit id
+            self.log.info(
+                "Link up",
+                src_port_id=src_port_id,
+                dst_port_id=dst_port_id,
+                src_vlan=src_vlan,
+                dst_vlan=dst_vlan,
+                circuit_id=circuit_id,
+            )
+            return circuit_id
+        except Exception as e:
+            self.log.error("Failed to activate connection", error=str(e))
+            raise NsiException(GenericRmError, f"Failed to activate connection: {str(e)}") from e
 
 
     def deactivate(

@@ -15,7 +15,7 @@ import os
 from typing import List, Optional
 from uuid import UUID, uuid4
 
-from netmiko import BaseConnection, ConnectHandler
+from netmiko import ConnectHandler
 import yaml
 from pydantic import BaseSettings
 
@@ -44,11 +44,11 @@ COMMAND_CONFIGURE = "configure"
 COMMAND_CREATE_VLAN = "vlan %i"
 COMMAND_DELETE_VLAN = "no vlan %i"
 COMMAND_INTERFACE = "interface %s"
-COMMAND_MODE_ACCESS = "swi mode access"
-COMMAND_MODE_TRUNK = "swi mode trunk"
-COMMAND_ACCESS_VLAN = "swi access vlan %i"
-COMMAND_TRUNK_ADD_VLAN = "swi trunk allowed vlan add %i"
-COMMAND_TRUNK_REM_VLAN = "swi trunk allowed vlan remove %i"
+COMMAND_MODE_ACCESS = "switchport mode access"
+COMMAND_MODE_TRUNK = "switchport mode trunk"
+COMMAND_ACCESS_VLAN = "switchport access vlan %i"
+COMMAND_TRUNK_ADD_VLAN = "switchport trunk allowed vlan add %i"
+COMMAND_TRUNK_REM_VLAN = "switchport trunk allowed vlan remove %i"
 COMMAND_EXIT = "exit"
 # COMMAND_COMMIT = 'copy running-config startup-config'
 COMMAND_COMMIT = "write"
@@ -56,7 +56,7 @@ COMMAND_NO_SHUTDOWN = "no shutdown"
 
 # vlan and interface descriptions
 COMMAND_VLAN_NAME = "name %s" % "nsi-supa"
-COMMAND_INT_DESCEIPTION = "description %s" % "nsi-supa's stp."
+COMMAND_INT_DESCRIPTION = "description %s" % "nsi-supa's stp."
 
 def _create_configure_commands(source_port: str, dest_port: str, vlan: int) -> List[bytes]:
     createvlan = COMMAND_CREATE_VLAN % vlan
@@ -66,7 +66,7 @@ def _create_configure_commands(source_port: str, dest_port: str, vlan: int) -> L
     addvlan = COMMAND_TRUNK_ADD_VLAN % vlan
     cmdexit = COMMAND_EXIT
     vlanname= COMMAND_VLAN_NAME
-    intdesc = COMMAND_INT_DESCEIPTION
+    intdesc = COMMAND_INT_DESCRIPTION
     commands = [createvlan, vlanname, cmdexit, intsrc, intdesc, modetrunk, addvlan, cmdexit, intdst, intdesc, modetrunk, addvlan, cmdexit]
     return commands
 
@@ -92,7 +92,7 @@ class Backend(BaseBackend):
         self.backend_settings = BackendSettings(_env_file=(env_file := find_file(self.configs_dir + "/" + file_basename + ".env")))
         self.log.info("Read backend properties", path=str(env_file))
 
-        self.arsita_eos_switch = {
+        self.arista_eos_switch = {
             'device_type': 'arista_eos',
             'ip': self.backend_settings.ssh_hostname,
             'port': self.backend_settings.ssh_port,
@@ -122,8 +122,8 @@ class Backend(BaseBackend):
                 raise NsiException(GenericRmError, reason)
 
         if privkey:
-            self.arsita_eos_switch["use_keys"] = True,
-            self.arsita_eos_switch["key_file"] = privkey
+            self.arista_eos_switch["use_keys"] = True
+            self.arista_eos_switch["key_file"] = privkey
         elif not self.backend_settings.ssh_password:
             raise AssertionError("No keys or password supplied")
 
@@ -136,7 +136,7 @@ class Backend(BaseBackend):
         try:
             self._check_ssh_pass_keys()
             self.log.debug("Send command start")
-            with ConnectHandler(**self.arsita_eos_switch) as conn:
+            with ConnectHandler(**self.arista_eos_switch) as conn:
                 conn.enable()
                 self.log.debug("Starting Config")
                 conn.send_config_set(commands)
