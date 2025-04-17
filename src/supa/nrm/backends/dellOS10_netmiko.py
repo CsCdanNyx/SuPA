@@ -338,4 +338,4 @@ class Backend(BaseBackend):
         self.log.info(
             "Terminate resources in dellOS10_netmiko NRM", backend=self.__module__, primitive="terminate", connection_id=str(connection_id)
         )
-        return None 
+        return None
