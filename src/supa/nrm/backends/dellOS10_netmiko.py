@@ -50,7 +50,8 @@ COMMAND_ACCESS_VLAN = "switchport access vlan %i"
 COMMAND_TRUNK_ADD_VLAN = "switchport trunk allowed vlan %i"
 COMMAND_TRUNK_REM_VLAN = "no switchport trunk allowed vlan %i"
 COMMAND_EXIT = "exit"
-COMMAND_COMMIT = "copy running-config startup-config"
+# COMMAND_COMMIT = "copy running-config startup-config"
+COMMAND_COMMIT = "write"
 COMMAND_NO_SHUTDOWN = "no shutdown"
 
 # vlan and interface descriptions
