@@ -55,8 +55,8 @@ COMMAND_COMMIT = "write"
 COMMAND_NO_SHUTDOWN = "no shutdown"
 
 # vlan and interface descriptions
-COMMAND_VLAN_NAME = "description %s" % "nsi-supa"
-COMMAND_INT_DESCRIPTION = "description %s" % "nsi-supa_stp"
+COMMAND_VLAN_NAME = "description vlan-%i"  # Will use the VLAN number
+COMMAND_INT_DESCRIPTION = "description port-%s"  # Will use the port identifier
 
 def _create_configure_commands(source_port: str, dest_port: str, vlan: int) -> List[str]:
     createvlan = COMMAND_CREATE_VLAN % vlan
@@ -65,9 +65,10 @@ def _create_configure_commands(source_port: str, dest_port: str, vlan: int) -> L
     modetrunk = COMMAND_MODE_TRUNK
     addvlan = COMMAND_TRUNK_ADD_VLAN % vlan
     cmdexit = COMMAND_EXIT
-    vlanname= COMMAND_VLAN_NAME
-    intdesc = COMMAND_INT_DESCRIPTION
-    commands = [createvlan, vlanname, cmdexit, intsrc, intdesc, modetrunk, addvlan, cmdexit, intdst, intdesc, modetrunk, addvlan, cmdexit]
+    vlanname = COMMAND_VLAN_NAME % vlan
+    intsrc_desc = COMMAND_INT_DESCRIPTION % source_port
+    intdst_desc = COMMAND_INT_DESCRIPTION % dest_port
+    commands = [createvlan, vlanname, cmdexit, intsrc, intsrc_desc, modetrunk, addvlan, cmdexit, intdst, intdst_desc, modetrunk, addvlan, cmdexit]
     return commands
 
 
