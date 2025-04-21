@@ -1,5 +1,5 @@
 stps:
-  - stp_id: my_stp2                  # Required, str, Uniq ID of the STP.
+  - stp_id: my_stp                  # Required, str, Uniq ID of the STP.
     port_id: ethernet2                  # Required, str, ID of the corresponding port.
     vlans: "1728"                    # Required, str, VLANs part of this STP.
     description: "my test stp 2."         # Optional, str, STP description.

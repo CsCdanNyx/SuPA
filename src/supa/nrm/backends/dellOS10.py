@@ -10,54 +10,13 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-"""
-Dell OS10 Backend.
-Based on aristaEOS4.py and adapted for Dell OS10.
 
-Switch command prompt starts with OS10# and config mode is OS10(config)#
-
-Configuration:
-You need to first enable the switch cli for specified privilege commands level.
-OS10>enable
-
-To setup a VLAN connection:
-// in sw cli mode on login
-OS10# configure
-// config for source interface
-OS10(config)#interface vlan {$vlan}
-OS10(config)#exit
-OS10(config)#interface ethernet {$src_interface}
-OS10(config-if-{$et?})#switchport mode trunk
-OS10(config-if-{$et?})#switchport trunk allowed vlan {$vlan}
-OS10(config-if-{$et?})#exit
-// redo config for destination interface
-OS10(config)#interface ethernet {$dst_interface}
-OS10(config-if-{$et?})#switchport mode trunk
-OS10(config-if-{$et?})#switchport trunk allowed vlan {$vlan}
-OS10(config-if-{$et?})#exit
-// Saving config
-OS10#copy running-config startup-config
-
-teardown:
-// in sw cli mode on login
-OS10# configure
-// rm vlan for source interface
-OS10(config)#interface ethernet {$src_interface}
-OS10(config-if-{$et?})#no switchport trunk allowed vlan {$vlan}
-OS10(config-if-{$et?})#exit
-// rm vlan for destination interface
-OS10(config)#interface ethernet {$dst_interface}
-OS10(config-if-{$et?})#no switchport trunk allowed vlan {$vlan}
-OS10(config-if-{$et?})#exit
-// Saving config
-OS10#copy running-config startup-config
-"""
 import os
 from typing import List, Optional
 from uuid import UUID, uuid4
 
-import paramiko
 import yaml
+from netmiko import ConnectHandler
 from pydantic import BaseSettings
 
 from supa.connection.error import GenericRmError
@@ -77,47 +36,44 @@ class BackendSettings(BaseSettings):
     ssh_private_key_path: str = ""
     ssh_public_key_path: str = ""
 
-    cli_prompt: str = ""
-    cli_needs_enable: bool = True
-
     stps_config: str = "stps_config.yml"
 
 # parametrized commands
-COMMAND_ENABLE = b"enable"
-COMMAND_CONFIGURE = b"configure"
-COMMAND_CREATE_VLAN = b"interface vlan %i"
-COMMAND_DELETE_VLAN = b"no interface vlan %i"
-COMMAND_INTERFACE = b"interface ethernet %s"
-COMMAND_MODE_ACCESS = b"switchport mode access"
-COMMAND_MODE_TRUNK = b"switchport mode trunk"
-COMMAND_ACCESS_VLAN = b"switchport access vlan %i"
-COMMAND_TRUNK_ADD_VLAN = b"switchport trunk allowed vlan %i"
-COMMAND_TRUNK_REM_VLAN = b"no switchport trunk allowed vlan %i"
-COMMAND_EXIT = b"exit"
-COMMAND_COMMIT = b"copy running-config startup-config"
-COMMAND_NO_SHUTDOWN = b"no shutdown"
+COMMAND_ENABLE = "enable"
+COMMAND_CONFIGURE = "configure"
+COMMAND_CREATE_VLAN = "interface vlan %i"
+COMMAND_DELETE_VLAN = "no interface vlan %i"
+COMMAND_INTERFACE = "interface ethernet %s"
+COMMAND_MODE_ACCESS = "switchport mode access"
+COMMAND_MODE_TRUNK = "switchport mode trunk"
+COMMAND_ACCESS_VLAN = "switchport access vlan %i"
+COMMAND_TRUNK_ADD_VLAN = "switchport trunk allowed vlan %i"
+COMMAND_TRUNK_REM_VLAN = "no switchport trunk allowed vlan %i"
+COMMAND_EXIT = "exit"
+# COMMAND_COMMIT = "copy running-config startup-config"
+COMMAND_COMMIT = "write"
+COMMAND_NO_SHUTDOWN = "no shutdown"
 
 # vlan and interface descriptions
-COMMAND_VLAN_NAME = b"description %s" % b"nsi-supa"
-COMMAND_INT_DESCRIPTION = b"description %s" % b"nsi-supa_stp"
+COMMAND_VLAN_NAME = "description %s" % "nsi-supa"
+COMMAND_INT_DESCRIPTION = "description %s" % "nsi-supa_stp"
 
-
-def _create_configure_commands(source_port: str, dest_port: str, vlan: int) -> List[bytes]:
+def _create_configure_commands(source_port: str, dest_port: str, vlan: int) -> List[str]:
     createvlan = COMMAND_CREATE_VLAN % vlan
-    intsrc = COMMAND_INTERFACE % source_port.encode("utf-8")
-    intdst = COMMAND_INTERFACE % dest_port.encode("utf-8")
+    intsrc = COMMAND_INTERFACE % source_port
+    intdst = COMMAND_INTERFACE % dest_port
     modetrunk = COMMAND_MODE_TRUNK
     addvlan = COMMAND_TRUNK_ADD_VLAN % vlan
     cmdexit = COMMAND_EXIT
-    vlanname = COMMAND_VLAN_NAME
+    vlanname= COMMAND_VLAN_NAME
     intdesc = COMMAND_INT_DESCRIPTION
     commands = [createvlan, vlanname, cmdexit, intsrc, intdesc, modetrunk, addvlan, cmdexit, intdst, intdesc, modetrunk, addvlan, cmdexit]
     return commands
 
 
-def _create_delete_commands(source_port: str, dest_port: str, vlan: int) -> List[bytes]:
-    intsrc = COMMAND_INTERFACE % source_port.encode("utf-8")
-    intdst = COMMAND_INTERFACE % dest_port.encode("utf-8")
+def _create_delete_commands(source_port: str, dest_port: str, vlan: int) -> List[str]:
+    intsrc = COMMAND_INTERFACE % source_port
+    intdst = COMMAND_INTERFACE % dest_port
     remvlan = COMMAND_TRUNK_REM_VLAN % vlan
     cmdexit = COMMAND_EXIT
     # deletevlan = COMMAND_DELETE_VLAN % vlan
@@ -136,124 +92,55 @@ class Backend(BaseBackend):
         self.backend_settings = BackendSettings(_env_file=(env_file := find_file(self.configs_dir + "/" + file_basename + ".env")))
         self.log.info("Read backend properties", path=str(env_file))
 
-    def _get_ssh_shell(self) -> None:
-        self.sshclient = paramiko.SSHClient()
-        self.sshclient.load_system_host_keys()
-        self.sshclient.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        self.dell_os10_switch = {
+            'device_type': 'dell_os10',
+            'ip': self.backend_settings.ssh_hostname,
+            'port': self.backend_settings.ssh_port,
+            'username': self.backend_settings.ssh_username,
+            'password': self.backend_settings.ssh_password,
+            'use_keys': False,
+            # 'session_log': 'session.log',
+            'timeout': 30,
+            'keepalive': 30,
+        }
+
+
+    def _check_ssh_pass_keys(self) -> None:
         privkey = None
-
-        try:
-            if self.backend_settings.ssh_private_key_path:
-                if os.path.exists(self.backend_settings.ssh_private_key_path):
-                    privkey = paramiko.RSAKey.from_private_key_file(self.backend_settings.ssh_private_key_path)
-                elif os.path.exists(os.path.expanduser(self.backend_settings.ssh_private_key_path)):
-                    privkey = paramiko.RSAKey.from_private_key_file(
-                        os.path.expanduser(self.backend_settings.ssh_private_key_path)
-                    )
-                else:
-                    reason = "Incorrect private key path or file does not exist"
-                    self.log.warning("failed to initialise SSH client", reason=reason)
-                    raise NsiException(GenericRmError, reason)
-
-            if privkey:
-                self.sshclient.connect(
-                    hostname=self.backend_settings.ssh_hostname,
-                    port=self.backend_settings.ssh_port,
-                    username=self.backend_settings.ssh_username,
-                    pkey=privkey,
-                )
-            elif self.backend_settings.ssh_password:
-                # go with username/pass
-                self.sshclient.connect(
-                    hostname=self.backend_settings.ssh_hostname,
-                    port=self.backend_settings.ssh_port,
-                    username=self.backend_settings.ssh_username,
-                    password=self.backend_settings.ssh_password,
-                )
+        if self.backend_settings.ssh_private_key_path:
+            if os.path.exists(self.backend_settings.ssh_private_key_path):
+                privkey = self.backend_settings.ssh_private_key_path
+            elif os.path.exists(os.path.expanduser(self.backend_settings.ssh_private_key_path)):
+                privkey = os.path.expanduser(self.backend_settings.ssh_private_key_path)
             else:
-                raise AssertionError("No keys or password supplied")
+                reason = "Incorrect private key path or file does not exist"
+                self.log.warning("failed to initialise SSH client", reason=reason)
+                raise NsiException(GenericRmError, reason)
 
-        except Exception as exception:
-            self.log.warning("SSH client connect failure", reason=str(exception))
-            raise NsiException(GenericRmError, str(exception)) from exception
+        if privkey:
+            self.dell_os10_switch["use_keys"] = True
+            self.dell_os10_switch["key_file"] = privkey
+        elif not self.backend_settings.ssh_password:
+            raise AssertionError("No keys or password supplied")
 
-        transport = self.sshclient.get_transport()
-        transport.set_keepalive(30)  # type: ignore[union-attr]
-        self.channel = self.sshclient.invoke_shell()
-        self.channel.settimeout(30)
 
-    def _close_ssh_shell(self) -> None:
-        self.channel.close()
-        self.sshclient.close()
-
-    def _send_commands(self, commands: List[bytes]) -> None:
-        line = b""
-        line_termination = b"\r"  # line termination
-        self._get_ssh_shell()
-
+    def _send_commands(self, commands: List[str]) -> None:
         self.log.debug("_send_commands() function with cli list: %r" % commands)
 
         try:
+            self._check_ssh_pass_keys()
             self.log.debug("Send command start")
-
-            if self.backend_settings.cli_needs_enable:
-                while not line.decode("utf-8").endswith(self.backend_settings.cli_prompt + ">"):
-                    resp = self.channel.recv(999)
-                    line += resp
-                    self.log.debug(resp)
-                line = b""
-
-                # Enable Privileged Mode
-                self.log.debug("Enable Privileged Mode")
-                self.channel.send(COMMAND_ENABLE + line_termination)
-
-            while not line.decode("utf-8").endswith(self.backend_settings.cli_prompt + "#"):
-                resp = self.channel.recv(999)
-                line += resp
-                self.log.debug(resp)
-            line = b""
-
-            self.log.debug("Starting Config")
-            self.channel.send(COMMAND_CONFIGURE + line_termination)
-            while not line.decode("utf-8").endswith(self.backend_settings.cli_prompt + "(config)#"):
-                resp = self.channel.recv(999)
-                line += resp
-                self.log.debug(resp)
-            line = b""
-
-            self.log.debug("Entered configure mode")
-            for cmd in commands:
-                self.log.debug("CMD> %r" % cmd)
-                self.channel.send(cmd + line_termination)
-                while not line.decode("utf-8").endswith(")#"):
-                    resp = self.channel.recv(999)
-                    line += resp
-                    self.log.debug(resp)
-
-                # self.log.debug(line)
-                line = b""
-
-            self.log.debug("Exiting configure mode")
-            self.channel.send(COMMAND_EXIT + line_termination)
-            while not line.decode("utf-8").endswith(self.backend_settings.cli_prompt + "#"):
-                resp = self.channel.recv(999)
-                line += resp
-                self.log.debug(resp)
-
-            line = b""
-            self.log.debug("Exited configure mode; saving config")
-            self.channel.send(COMMAND_COMMIT + line_termination)
-            while not line.decode("utf-8").endswith(self.backend_settings.cli_prompt + "#"):
-                resp = self.channel.recv(999)
-                line += resp
-                self.log.debug(resp)
+            with ConnectHandler(**self.dell_os10_switch) as conn:
+                conn.enable()
+                self.log.debug("Starting Config")
+                conn.send_config_set(commands)
+                self.log.debug("Finished configuration, saving config.")
+                conn.send_command(COMMAND_COMMIT)
 
         except Exception as exception:
-            self._close_ssh_shell()
-            self.log.warning("Error sending commands", exception=str(exception))
-            raise NsiException(GenericRmError, f"Error sending commands: {str(exception)}") from exception
+            self.log.warning("Error sending commands")
+            raise NsiException(GenericRmError, "Error sending commands") from exception
 
-        self._close_ssh_shell()
         self.log.debug("Commands successfully committed")
 
 
@@ -274,22 +161,17 @@ class Backend(BaseBackend):
 
         if not src_vlan == dst_vlan:
             raise NsiException(GenericRmError, "VLANs must match")
-
-        try:
-            self._send_commands(_create_configure_commands(src_port_id, dst_port_id, dst_vlan))
-            circuit_id = uuid4().urn  # dummy circuit id
-            self.log.info(
-                "Link up",
-                src_port_id=src_port_id,
-                dst_port_id=dst_port_id,
-                src_vlan=src_vlan,
-                dst_vlan=dst_vlan,
-                circuit_id=circuit_id,
-            )
-            return circuit_id
-        except Exception as e:
-            self.log.error("Failed to activate connection", error=str(e))
-            raise NsiException(GenericRmError, f"Failed to activate connection: {str(e)}") from e
+        self._send_commands(_create_configure_commands(src_port_id, dst_port_id, dst_vlan))
+        circuit_id = uuid4().urn  # dummy circuit id
+        self.log.info(
+            "Link up",
+            src_port_id=src_port_id,
+            dst_port_id=dst_port_id,
+            src_vlan=src_vlan,
+            dst_vlan=dst_vlan,
+            circuit_id=circuit_id,
+        )
+        return circuit_id
 
 
     def deactivate(
@@ -457,4 +339,4 @@ class Backend(BaseBackend):
         self.log.info(
             "Terminate resources in dellOS10 NRM", backend=self.__module__, primitive="terminate", connection_id=str(connection_id)
         )
-        return None 
+        return None
