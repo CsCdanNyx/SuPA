@@ -58,7 +58,7 @@ ceos2#write
 
 """
 import os
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 import paramiko
@@ -74,6 +74,7 @@ from supa.util.find import find_file
 class BackendSettings(BaseSettings):
     """Backend settings with default values."""
 
+    # SSH connection settings
     ssh_hostname: str = "localhost"
     ssh_port: int = 22
     ssh_host_fingerprint: str = ""
@@ -82,81 +83,80 @@ class BackendSettings(BaseSettings):
     ssh_private_key_path: str = ""
     ssh_public_key_path: str = ""
 
+    # CLI interaction settings
     cli_prompt: str = ""
     cli_needs_enable: bool = True
 
+    # Configuration files
     stps_config: str = "stps_config.yml"
 
-# parametrized commands
-COMMAND_ENABLE = b"enable"
-COMMAND_CONFIGURE = b"configure"
-COMMAND_CREATE_VLAN = b"vlan %i"
-COMMAND_DELETE_VLAN = b"no vlan %i"
-COMMAND_INTERFACE = b"interface %s"
-COMMAND_MODE_ACCESS = b"switchport mode access"
-COMMAND_MODE_TRUNK = b"switchport mode trunk"
-COMMAND_ACCESS_VLAN = b"switchport access vlan %i"
-COMMAND_TRUNK_ADD_VLAN = b"switchport trunk allowed vlan add %i"
-COMMAND_TRUNK_REM_VLAN = b"switchport trunk allowed vlan remove %i"
-COMMAND_EXIT = b"exit"
-# COMMAND_COMMIT = 'copy running-config startup-config'
-COMMAND_COMMIT = b"write"
-COMMAND_NO_SHUTDOWN = b"no shutdown"
-
-
-def _create_configure_commands(source_port: str, dest_port: str, vlan: int) -> List[bytes]:
-    createvlan = COMMAND_CREATE_VLAN % vlan
-    intsrc = COMMAND_INTERFACE % source_port.encode("utf-8")
-    intdst = COMMAND_INTERFACE % dest_port.encode("utf-8")
-    modetrunk = COMMAND_MODE_TRUNK
-    addvlan = COMMAND_TRUNK_ADD_VLAN % vlan
-    cmdexit = COMMAND_EXIT
-    commands = [createvlan, cmdexit, intsrc, modetrunk, addvlan, cmdexit, intdst, modetrunk, addvlan, cmdexit]
-    return commands
-
-
-def _create_delete_commands(source_port: str, dest_port: str, vlan: int) -> List[bytes]:
-    intsrc = COMMAND_INTERFACE % source_port.encode("utf-8")
-    intdst = COMMAND_INTERFACE % dest_port.encode("utf-8")
-    remvlan = COMMAND_TRUNK_REM_VLAN % vlan
-    cmdexit = COMMAND_EXIT
-    # deletevlan = COMMAND_DELETE_VLAN % vlan
-    commands = [intsrc, remvlan, cmdexit, intdst, remvlan, cmdexit]  # , deletevlan]
-    return commands
+    # Command templates - these can be overridden in the env file
+    cmd_enable: str = "enable"
+    cmd_configure: str = "configure"
+    cmd_create_vlan: str = "vlan %i"
+    cmd_delete_vlan: str = "no vlan %i"
+    cmd_interface: str = "interface %s"
+    cmd_mode_access: str = "switchport mode access"
+    cmd_mode_trunk: str = "switchport mode trunk"
+    cmd_access_vlan: str = "switchport access vlan %i"
+    cmd_trunk_add_vlan: str = "switchport trunk allowed vlan add %i"
+    cmd_trunk_rem_vlan: str = "switchport trunk allowed vlan remove %i"
+    cmd_exit: str = "exit"
+    cmd_commit: str = "write"
+    cmd_no_shutdown: str = "no shutdown"
 
 
 class Backend(BaseBackend):
-    """Arista EOS4 backend interface."""
+    """Arista EOS backend interface using Paramiko."""
 
     def __init__(self) -> None:
-        """Load properties from 'aristaEOS4.env'."""
+        """Load backend properties from env file."""
         super(Backend, self).__init__()
-        file_basename = os.path.basename(__file__).split('.')[0]
-        self.configs_dir = file_basename + "_configs"
-        self.backend_settings = BackendSettings(_env_file=(env_file := find_file(self.configs_dir + "/" + file_basename + ".env")))
+
+        # Get backend name from the filename to make code more portable
+        self.backend_name = os.path.basename(__file__).split('.')[0]
+        self.configs_dir = f"{self.backend_name}_configs"
+
+        # Load backend settings from environment file
+        env_file = find_file(f"{self.configs_dir}/{self.backend_name}.env")
+        self.backend_settings = BackendSettings(_env_file=env_file)
         self.log.info("Read backend properties", path=str(env_file))
 
+        # Store commands for easy access
+        self.commands = {
+            'enable': self.backend_settings.cmd_enable.encode('utf-8'),
+            'configure': self.backend_settings.cmd_configure.encode('utf-8'),
+            'create_vlan': self.backend_settings.cmd_create_vlan.encode('utf-8'),
+            'delete_vlan': self.backend_settings.cmd_delete_vlan.encode('utf-8'),
+            'interface': self.backend_settings.cmd_interface.encode('utf-8'),
+            'mode_access': self.backend_settings.cmd_mode_access.encode('utf-8'),
+            'mode_trunk': self.backend_settings.cmd_mode_trunk.encode('utf-8'),
+            'access_vlan': self.backend_settings.cmd_access_vlan.encode('utf-8'),
+            'trunk_add_vlan': self.backend_settings.cmd_trunk_add_vlan.encode('utf-8'),
+            'trunk_rem_vlan': self.backend_settings.cmd_trunk_rem_vlan.encode('utf-8'),
+            'exit': self.backend_settings.cmd_exit.encode('utf-8'),
+            'commit': self.backend_settings.cmd_commit.encode('utf-8'),
+            'no_shutdown': self.backend_settings.cmd_no_shutdown.encode('utf-8'),
+        }
+
     def _get_ssh_shell(self) -> None:
+        """Initialize SSH connection and shell."""
         self.sshclient = paramiko.SSHClient()
         self.sshclient.load_system_host_keys()
         self.sshclient.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         privkey = None
 
         try:
-            if self.backend_settings.ssh_private_key_path:  # self.public_key_path
-                if os.path.exists(
-                    self.backend_settings.ssh_private_key_path
-                ):  # and os.path.exists(self.public_key_path):
+            if self.backend_settings.ssh_private_key_path:
+                if os.path.exists(self.backend_settings.ssh_private_key_path):
                     privkey = paramiko.RSAKey.from_private_key_file(self.backend_settings.ssh_private_key_path)
-
                 elif os.path.exists(os.path.expanduser(self.backend_settings.ssh_private_key_path)):
                     privkey = paramiko.RSAKey.from_private_key_file(
                         os.path.expanduser(self.backend_settings.ssh_private_key_path)
                     )
-
                 else:
                     reason = "Incorrect private key path or file does not exist"
-                    self.log.warning("failed to initialise SSH client", reason=reason)
+                    self.log.warning("Failed to initialize SSH client", reason=reason)
                     raise NsiException(GenericRmError, reason)
 
             if privkey:
@@ -166,9 +166,7 @@ class Backend(BaseBackend):
                     username=self.backend_settings.ssh_username,
                     pkey=privkey,
                 )
-
             elif self.backend_settings.ssh_password:
-                # go with username/pass
                 self.sshclient.connect(
                     hostname=self.backend_settings.ssh_hostname,
                     port=self.backend_settings.ssh_port,
@@ -188,18 +186,82 @@ class Backend(BaseBackend):
         self.channel.settimeout(30)
 
     def _close_ssh_shell(self) -> None:
+        """Close SSH connection and shell."""
         self.channel.close()
         self.sshclient.close()
 
+    def _create_configure_commands(self, source_port: str, dest_port: str, vlan: int) -> List[bytes]:
+        """Generate commands to configure VLAN on source and destination ports.
+
+        Args:
+            source_port: Source port identifier
+            dest_port: Destination port identifier
+            vlan: VLAN number to configure
+
+        Returns:
+            List of commands to execute
+        """
+        cmds = self.commands
+
+        # Generate all the commands using the templates
+        createvlan = cmds['create_vlan'] % vlan
+        intsrc = cmds['interface'] % source_port.encode("utf-8")
+        intdst = cmds['interface'] % dest_port.encode("utf-8")
+        modetrunk = cmds['mode_trunk']
+        addvlan = cmds['trunk_add_vlan'] % vlan
+        cmdexit = cmds['exit']
+
+        # Build command sequence
+        commands = [
+            createvlan, cmdexit,
+            intsrc, modetrunk, addvlan, cmdexit,
+            intdst, modetrunk, addvlan, cmdexit
+        ]
+        return commands
+
+    def _create_delete_commands(self, source_port: str, dest_port: str, vlan: int) -> List[bytes]:
+        """Generate commands to remove VLAN from source and destination ports.
+
+        Args:
+            source_port: Source port identifier
+            dest_port: Destination port identifier
+            vlan: VLAN number to remove
+
+        Returns:
+            List of commands to execute
+        """
+        cmds = self.commands
+
+        # Generate all the commands using the templates
+        intsrc = cmds['interface'] % source_port.encode("utf-8")
+        intdst = cmds['interface'] % dest_port.encode("utf-8")
+        remvlan = cmds['trunk_rem_vlan'] % vlan
+        cmdexit = cmds['exit']
+
+        # Build command sequence
+        commands = [
+            intsrc, remvlan, cmdexit,
+            intdst, remvlan, cmdexit
+        ]
+        return commands
+
     def _send_commands(self, commands: List[bytes]) -> None:
+        """Send commands to the switch via SSH.
+
+        Args:
+            commands: List of commands to execute
+
+        Raises:
+            NsiException: If there's an error sending commands
+        """
         line = b""
         line_termination = b"\r"  # line termination
         self._get_ssh_shell()
 
-        self.log.debug("_send_commands() function with cli list: %r" % commands)
+        self.log.debug("Sending commands to switch", command_list=commands)
 
         try:
-            self.log.debug("Send command start")
+            self.log.debug("Establishing SSH connection")
 
             if self.backend_settings.cli_needs_enable:
                 while not line.decode("utf-8").endswith(self.backend_settings.cli_prompt + ">"):
@@ -210,7 +272,7 @@ class Backend(BaseBackend):
 
                 # Enable Privileged Mode
                 self.log.debug("Enable Privileged Mode")
-                self.channel.send(COMMAND_ENABLE + line_termination)
+                self.channel.send(self.commands['enable'] + line_termination)
 
             while not line.decode("utf-8").endswith(self.backend_settings.cli_prompt + "#"):
                 resp = self.channel.recv(999)
@@ -218,8 +280,8 @@ class Backend(BaseBackend):
                 self.log.debug(resp)
             line = b""
 
-            self.log.debug("Starting Config")
-            self.channel.send(COMMAND_CONFIGURE + line_termination)
+            self.log.debug("Starting configuration")
+            self.channel.send(self.commands['configure'] + line_termination)
             while not line.decode("utf-8").endswith(self.backend_settings.cli_prompt + "(config)#"):
                 resp = self.channel.recv(999)
                 line += resp
@@ -228,26 +290,24 @@ class Backend(BaseBackend):
 
             self.log.debug("Entered configure mode")
             for cmd in commands:
-                self.log.debug("CMD> %r" % cmd)
+                self.log.debug(f"Command: {cmd}")
                 self.channel.send(cmd + line_termination)
                 while not line.decode("utf-8").endswith(")#"):
                     resp = self.channel.recv(999)
                     line += resp
                     self.log.debug(resp)
-
-                # self.log.debug(line)
                 line = b""
 
             self.log.debug("Exiting configure mode")
-            self.channel.send(COMMAND_EXIT + line_termination)
+            self.channel.send(self.commands['exit'] + line_termination)
             while not line.decode("utf-8").endswith(self.backend_settings.cli_prompt + "#"):
                 resp = self.channel.recv(999)
                 line += resp
                 self.log.debug(resp)
-
             line = b""
-            self.log.debug("Exited configure mode; saving config")
-            self.channel.send(COMMAND_COMMIT + line_termination)
+
+            self.log.debug("Saving configuration")
+            self.channel.send(self.commands['commit'] + line_termination)
             while not line.decode("utf-8").endswith(self.backend_settings.cli_prompt + "#"):
                 resp = self.channel.recv(999)
                 line += resp
@@ -261,7 +321,6 @@ class Backend(BaseBackend):
         self._close_ssh_shell()
         self.log.debug("Commands successfully committed")
 
-
     def activate(
         self,
         connection_id: UUID,
@@ -272,17 +331,40 @@ class Backend(BaseBackend):
         dst_vlan: int,
         circuit_id: str,
     ) -> Optional[str]:
-        """Activate resources."""
+        """Activate resources by configuring VLANs on the switch.
+
+        Args:
+            connection_id: Unique identifier for the connection
+            bandwidth: Required bandwidth in Mbps
+            src_port_id: Source port identifier
+            src_vlan: Source VLAN number
+            dst_port_id: Destination port identifier
+            dst_vlan: Destination VLAN number
+            circuit_id: Circuit identifier
+
+        Returns:
+            Circuit identifier (generated if not provided)
+
+        Raises:
+            NsiException: If VLANs don't match
+        """
         self.log.info(
-            "Activate resources in aristaEOS4 NRM", backend=self.__module__, primitive="activate", connection_id=str(connection_id)
+            f"Activate resources in {self.backend_name} NRM",
+            backend=self.__module__,
+            primitive="activate",
+            connection_id=str(connection_id)
         )
 
-        if not src_vlan == dst_vlan:
+        if src_vlan != dst_vlan:
             raise NsiException(GenericRmError, "VLANs must match")
 
         try:
-            self._send_commands(_create_configure_commands(src_port_id, dst_port_id, dst_vlan))
-            circuit_id = uuid4().urn  # dummy circuit id
+            self._send_commands(self._create_configure_commands(src_port_id, dst_port_id, dst_vlan))
+
+            # Generate circuit ID if not provided
+            if not circuit_id:
+                circuit_id = uuid4().urn
+
             self.log.info(
                 "Link up",
                 src_port_id=src_port_id,
@@ -296,7 +378,6 @@ class Backend(BaseBackend):
             self.log.error("Failed to activate connection", error=str(e))
             raise NsiException(GenericRmError, f"Failed to activate connection: {str(e)}") from e
 
-
     def deactivate(
         self,
         connection_id: UUID,
@@ -307,12 +388,26 @@ class Backend(BaseBackend):
         dst_vlan: int,
         circuit_id: str,
     ) -> Optional[str]:
-        """Deactivate resources."""
+        """Deactivate resources by removing VLANs from the switch.
+
+        Args:
+            connection_id: Unique identifier for the connection
+            bandwidth: Required bandwidth in Mbps
+            src_port_id: Source port identifier
+            src_vlan: Source VLAN number
+            dst_port_id: Destination port identifier
+            dst_vlan: Destination VLAN number
+            circuit_id: Circuit identifier
+        """
         self.log.info(
-            "Deactivate resources in aristaEOS4 NRM", backend=self.__module__, primitive="deactivate", connection_id=str(connection_id)
+            f"Deactivate resources in {self.backend_name} NRM",
+            backend=self.__module__,
+            primitive="deactivate",
+            connection_id=str(connection_id)
         )
 
-        self._send_commands(_create_delete_commands(src_port_id, dst_port_id, dst_vlan))
+        self._send_commands(self._create_delete_commands(src_port_id, dst_port_id, dst_vlan))
+
         self.log.info(
             "Link down",
             src_port_id=src_port_id,
@@ -323,26 +418,53 @@ class Backend(BaseBackend):
         )
         return None
 
-
     def topology(self) -> List[STP]:
-        """Read STPs from yaml file."""
-        self.log.info("get topology from aristaEOS4 NRM", backend=self.__module__, primitive="topology")
+        """Read STPs from YAML file and convert to STP objects."""
+        self.log.info(f"Get topology from {self.backend_name} NRM", backend=self.__module__, primitive="topology")
 
-        stp_list_file = find_file(self.configs_dir + "/" + self.backend_settings.stps_config)
-        self.log.info("Read STPs config", path=str(stp_list_file))
+        # Find and load the STP configuration file
+        config_path = find_file(f"{self.configs_dir}/{self.backend_settings.stps_config}")
 
-        def _load_stp_from_file(stp_list_file: str) -> List[STP]:
-            with open(stp_list_file, "r") as stps_file:
-                stp_list = [STP(**stp) for stp in yaml.safe_load(stps_file)["stps"]]
-            return stp_list
+        # Load and process STPs
+        with open(config_path, "r") as f:
+            stp_configs = yaml.safe_load(f)["stps"]
+            return [self._process_stp_config(config) for config in stp_configs]
 
-        stp_list = _load_stp_from_file(stp_list_file)
-        self.log.info("STP list", stp_list=stp_list)
+    def _process_stp_config(self, config: dict) -> STP:
+        """Convert a single STP configuration to an STP object.
 
-        return stp_list
+        Handles both bidirectional and directional STP configurations.
 
+        Args:
+            config: STP configuration dictionary
 
-### Not implemented functions, just provide logging. ###
+        Returns:
+            STP object
+        """
+        # Create a copy to avoid modifying the original
+        processed = config.copy()
+
+        # Process bidirectional STP configuration
+        if "remote_stp" in processed:
+            remote = processed.pop("remote_stp")
+            prefix = remote["prefix_urn"]
+            id = remote["id"]
+
+            processed["is_alias_in"] = f"{prefix}:{id}:out"
+            processed["is_alias_out"] = f"{prefix}:{id}:in"
+
+        # Process directional in/out configurations
+        if "remote_stp_in" in processed:
+            remote = processed.pop("remote_stp_in")
+            processed["is_alias_in"] = f"{remote['prefix_urn']}:{remote['id']}"
+
+        if "remote_stp_out" in processed:
+            remote = processed.pop("remote_stp_out")
+            processed["is_alias_out"] = f"{remote['prefix_urn']}:{remote['id']}"
+
+        return STP(**processed)
+
+### Not implemented functions, provide logging only ###
 
     def reserve(
         self,
@@ -355,7 +477,10 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Reserve resources in NRM."""
         self.log.info(
-            "Reserve resources in aristaEOS4 NRM", backend=self.__module__, primitive="reserve", connection_id=str(connection_id)
+            f"Reserve resources in {self.backend_name} NRM",
+            backend=self.__module__,
+            primitive="reserve",
+            connection_id=str(connection_id)
         )
         return None
 
@@ -371,7 +496,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Reserve timeout resources in NRM."""
         self.log.info(
-            "Reserve timeout resources in aristaEOS4 NRM",
+            f"Reserve timeout resources in {self.backend_name} NRM",
             backend=self.__module__,
             primitive="reserve_timeout",
             connection_id=str(connection_id),
@@ -390,7 +515,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Reserve commit resources in NRM."""
         self.log.info(
-            "Reserve commit resources in aristaEOS4 NRM",
+            f"Reserve commit resources in {self.backend_name} NRM",
             backend=self.__module__,
             primitive="reserve_commit",
             connection_id=str(connection_id),
@@ -409,7 +534,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Reserve abort resources in NRM."""
         self.log.info(
-            "Reserve abort resources in aristaEOS4 NRM",
+            f"Reserve abort resources in {self.backend_name} NRM",
             backend=self.__module__,
             primitive="reserve_abort",
             connection_id=str(connection_id),
@@ -428,7 +553,10 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Provision resources in NRM."""
         self.log.info(
-            "Provision resources in aristaEOS4 NRM", backend=self.__module__, primitive="provision", connection_id=str(connection_id)
+            f"Provision resources in {self.backend_name} NRM",
+            backend=self.__module__,
+            primitive="provision",
+            connection_id=str(connection_id)
         )
         return None
 
@@ -444,7 +572,10 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Release resources in NRM."""
         self.log.info(
-            "Release resources in aristaEOS4 NRM", backend=self.__module__, primitive="release", connection_id=str(connection_id)
+            f"Release resources in {self.backend_name} NRM",
+            backend=self.__module__,
+            primitive="release",
+            connection_id=str(connection_id)
         )
         return None
 
@@ -460,6 +591,9 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Terminate resources in NRM."""
         self.log.info(
-            "Terminate resources in aristaEOS4 NRM", backend=self.__module__, primitive="terminate", connection_id=str(connection_id)
+            f"Terminate resources in {self.backend_name} NRM",
+            backend=self.__module__,
+            primitive="terminate",
+            connection_id=str(connection_id)
         )
         return None
