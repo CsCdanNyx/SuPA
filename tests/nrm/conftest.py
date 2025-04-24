@@ -12,7 +12,7 @@ def backend_testing_vlans_ports() -> Any:
         "src_port_id": "Ethernet 1",
         "dst_port_id": "Ethernet 2",
         "dst_vlan": 1798,
-        "src_vlan": 1798, # Must equal to dst_vlan.
+        "src_vlan": 1798,  # Must equal to dst_vlan.
         # Parameters not used.
         "circuit_id": "circuit_id",
         "connection_id": "0000",
@@ -32,13 +32,16 @@ def pytest_addoption(parser):
 def src_port_id(request):
     return request.config.getoption("--src_port_id")
 
+
 @pytest.fixture(scope="module")
 def dst_port_id(request):
     return request.config.getoption("--dst_port_id")
 
+
 @pytest.fixture(scope="module")
 def dst_vlan(request):
     return request.config.getoption("--dst_vlan")
+
 
 # def pytest_generate_tests(metafunc):
 #     # This is called for every test. Only get/set command line arguments
@@ -46,4 +49,3 @@ def dst_vlan(request):
 #     option_value = metafunc.config.option.name
 #     if 'src_port_id' in metafunc.fixturenames and 'dst_port_id' in metafunc.fixturenames and 'dst_vlan' in metafunc.fixturenames and option_value is not None:
 #         metafunc.parametrize("name", [option_value])
-
