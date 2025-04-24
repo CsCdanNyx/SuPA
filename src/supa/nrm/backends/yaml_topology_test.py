@@ -42,7 +42,7 @@ class Backend(BaseBackend):
     def __init__(self) -> None:
         """Load properties from 'yaml_topology_test.env'."""
         super(Backend, self).__init__()
-        file_basename = os.path.basename(__file__).split('.')[0]
+        file_basename = os.path.basename(__file__).split(".")[0]
         self.configs_dir = file_basename + "_configs"
         self.backend_settings = BackendSettings()
 
@@ -58,7 +58,10 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Activate resources."""
         self.log.info(
-            "Activate resources in yaml_topology_test NRM", backend=self.__module__, primitive="activate", connection_id=str(connection_id)
+            "Activate resources in yaml_topology_test NRM",
+            backend=self.__module__,
+            primitive="activate",
+            connection_id=str(connection_id),
         )
 
         if not src_vlan == dst_vlan:
@@ -74,7 +77,6 @@ class Backend(BaseBackend):
         )
         return circuit_id
 
-
     def deactivate(
         self,
         connection_id: UUID,
@@ -87,7 +89,10 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Deactivate resources."""
         self.log.info(
-            "Deactivate resources in yaml_topology_test NRM", backend=self.__module__, primitive="deactivate", connection_id=str(connection_id)
+            "Deactivate resources in yaml_topology_test NRM",
+            backend=self.__module__,
+            primitive="deactivate",
+            connection_id=str(connection_id),
         )
 
         self.log.info(
@@ -100,10 +105,9 @@ class Backend(BaseBackend):
         )
         return None
 
-
     def topology(self) -> List[STP]:
         """Read STPs from YAML file and convert to STP objects."""
-        self.log.info(f"Get topology from yaml_topology_test NRM", backend=self.__module__, primitive="topology")
+        self.log.info("Get topology from yaml_topology_test NRM", backend=self.__module__, primitive="topology")
 
         # Find and load the STP configuration file
         config_path = find_file(f"{self.configs_dir}/{self.backend_settings.stps_config}")
@@ -131,10 +135,10 @@ class Backend(BaseBackend):
         if "remote_stp" in processed:
             remote = processed.pop("remote_stp")
             prefix = remote["prefix_urn"]
-            id = remote["id"]
+            stp_id = remote["id"]
 
-            processed["is_alias_in"] = f"{prefix}:{id}:out"
-            processed["is_alias_out"] = f"{prefix}:{id}:in"
+            processed["is_alias_in"] = f"{prefix}:{stp_id}:out"
+            processed["is_alias_out"] = f"{prefix}:{stp_id}:in"
 
         # Process directional in/out configurations
         if "remote_stp_in" in processed:
@@ -147,8 +151,7 @@ class Backend(BaseBackend):
 
         return STP(**processed)
 
-
-### Not implemented functions, just provide logging. ###
+    # Not implemented functions, just provide logging.
 
     def reserve(
         self,
@@ -161,7 +164,10 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Reserve resources in NRM."""
         self.log.info(
-            "Reserve resources in yaml_topology_test NRM", backend=self.__module__, primitive="reserve", connection_id=str(connection_id)
+            "Reserve resources in yaml_topology_test NRM",
+            backend=self.__module__,
+            primitive="reserve",
+            connection_id=str(connection_id),
         )
         return None
 
@@ -234,7 +240,10 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Provision resources in NRM."""
         self.log.info(
-            "Provision resources in yaml_topology_test NRM", backend=self.__module__, primitive="provision", connection_id=str(connection_id)
+            "Provision resources in yaml_topology_test NRM",
+            backend=self.__module__,
+            primitive="provision",
+            connection_id=str(connection_id),
         )
         return None
 
@@ -250,7 +259,10 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Release resources in NRM."""
         self.log.info(
-            "Release resources in yaml_topology_test NRM", backend=self.__module__, primitive="release", connection_id=str(connection_id)
+            "Release resources in yaml_topology_test NRM",
+            backend=self.__module__,
+            primitive="release",
+            connection_id=str(connection_id),
         )
         return None
 
@@ -266,6 +278,9 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Terminate resources in NRM."""
         self.log.info(
-            "Terminate resources in yaml_topology_test NRM", backend=self.__module__, primitive="terminate", connection_id=str(connection_id)
+            "Terminate resources in yaml_topology_test NRM",
+            backend=self.__module__,
+            primitive="terminate",
+            connection_id=str(connection_id),
         )
         return None
