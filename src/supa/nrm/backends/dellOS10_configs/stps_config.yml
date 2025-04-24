@@ -1,16 +1,25 @@
 stps:
-  - stp_id: my_stp1                                                                   # Required, str, Uniq ID of the STP.
-    port_id: 1/1/51                                                                   # Required, str, ID of the corresponding port.
-    vlans: "1779-1799"                                                                # Required, str, VLANs part of this STP.
-    description: "Dell STP test 1"                                                    # Optional, str, STP description.
-    is_alias_in: "urn:ogf:network:twaren.nchc.org:2014:topology:starlight-out"        # Optional, str, Inbound STP ID from connected topology.
-    is_alias_out: "urn:ogf:network:twaren.nchc.org:2014:topology:starlight-in"        # Optional, str, Outbound STP ID to connected topology.
-    bandwidth: 1000                                                                   # Required, int, Available bandwidth for this STP in Mbps.
-    enabled: True                                                                     # Optional, bool.
+  # Bidirectional STP (standard case, with ":in" and ":out")
+  - stp_id: my_stp1
+    port_id: 1/1/51
+    vlans: "1779-1799"
+    description: "Dell STP to TWAREN StarLight"
+    remote_stp:
+      prefix_urn: "urn:ogf:network:twaren.nchc.org:2014:topology"
+      id: "starlight1"
+    bandwidth: 1000
+    enabled: True
 
+  # STP with different in/out connections
   - stp_id: my_stp2
     port_id: 1/1/52
     vlans: "1779-1799"
-    description: "Dell STP test 2"
+    description: "Dell STP with different in/out connections"
+    remote_stp_in:
+      prefix_urn: "urn:ogf:network:twaren.nchc.org:2014:topology"
+      id: "starlight2-out"
+    remote_stp_out:
+      prefix_urn: "urn:ogf:network:nycu.org:2025:test"
+      id: "icair-in"
     bandwidth: 1000
     enabled: True

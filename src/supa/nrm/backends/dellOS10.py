@@ -12,12 +12,12 @@
 #  limitations under the License.
 
 import os
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from uuid import UUID, uuid4
 
 import yaml
 from netmiko import ConnectHandler
-from pydantic import BaseSettings
+from pydantic import BaseSettings, Field
 
 from supa.connection.error import GenericRmError
 from supa.job.shared import NsiException
@@ -28,6 +28,7 @@ from supa.util.find import find_file
 class BackendSettings(BaseSettings):
     """Backend settings with default values."""
 
+    # SSH connection settings
     ssh_hostname: str = "localhost"
     ssh_port: int = 22
     ssh_host_fingerprint: str = ""
@@ -36,77 +37,79 @@ class BackendSettings(BaseSettings):
     ssh_private_key_path: str = ""
     ssh_public_key_path: str = ""
 
+    # Configuration files
     stps_config: str = "stps_config.yml"
-
-# parametrized commands
-COMMAND_ENABLE = "enable"
-COMMAND_CONFIGURE = "configure"
-COMMAND_CREATE_VLAN = "interface vlan %i"
-COMMAND_DELETE_VLAN = "no interface vlan %i"
-COMMAND_INTERFACE = "interface ethernet %s"
-COMMAND_MODE_ACCESS = "switchport mode access"
-COMMAND_MODE_TRUNK = "switchport mode trunk"
-COMMAND_ACCESS_VLAN = "switchport access vlan %i"
-COMMAND_TRUNK_ADD_VLAN = "switchport trunk allowed vlan %i"
-COMMAND_TRUNK_REM_VLAN = "no switchport trunk allowed vlan %i"
-COMMAND_EXIT = "exit"
-# COMMAND_COMMIT = "copy running-config startup-config"
-COMMAND_COMMIT = "write"
-COMMAND_NO_SHUTDOWN = "no shutdown"
-
-# vlan and interface descriptions
-COMMAND_VLAN_NAME = "description vlan-%i"  # Will use the VLAN number
-COMMAND_INT_DESCRIPTION = "description port-%s"  # Will use the port identifier
-
-def _create_configure_commands(source_port: str, dest_port: str, vlan: int) -> List[str]:
-    createvlan = COMMAND_CREATE_VLAN % vlan
-    intsrc = COMMAND_INTERFACE % source_port
-    intdst = COMMAND_INTERFACE % dest_port
-    modetrunk = COMMAND_MODE_TRUNK
-    addvlan = COMMAND_TRUNK_ADD_VLAN % vlan
-    cmdexit = COMMAND_EXIT
-    vlanname = COMMAND_VLAN_NAME % vlan
-    intsrc_desc = COMMAND_INT_DESCRIPTION % source_port
-    intdst_desc = COMMAND_INT_DESCRIPTION % dest_port
-    commands = [createvlan, vlanname, cmdexit, intsrc, intsrc_desc, modetrunk, addvlan, cmdexit, intdst, intdst_desc, modetrunk, addvlan, cmdexit]
-    return commands
-
-
-def _create_delete_commands(source_port: str, dest_port: str, vlan: int) -> List[str]:
-    intsrc = COMMAND_INTERFACE % source_port
-    intdst = COMMAND_INTERFACE % dest_port
-    remvlan = COMMAND_TRUNK_REM_VLAN % vlan
-    cmdexit = COMMAND_EXIT
-    # deletevlan = COMMAND_DELETE_VLAN % vlan
-    commands = [intsrc, remvlan, cmdexit, intdst, remvlan, cmdexit]  # , deletevlan]
-    return commands
+    
+    # Switch type settings
+    device_type: str = "dell_os10"
+    
+    # Command templates - these can be overridden in the env file for different switches
+    cmd_enable: str = "enable"
+    cmd_configure: str = "configure"
+    cmd_create_vlan: str = "interface vlan %i"
+    cmd_delete_vlan: str = "no interface vlan %i"
+    cmd_interface: str = "interface ethernet %s"
+    cmd_mode_access: str = "switchport mode access"
+    cmd_mode_trunk: str = "switchport mode trunk"
+    cmd_access_vlan: str = "switchport access vlan %i"
+    cmd_trunk_add_vlan: str = "switchport trunk allowed vlan %i"
+    cmd_trunk_rm_vlan: str = "no switchport trunk allowed vlan %i"
+    cmd_exit: str = "exit"
+    cmd_commit: str = "write"  # "copy running-config startup-config" on some platforms
+    cmd_no_shutdown: str = "no shutdown"
+    cmd_vlan_name: str = "description vlan-%i"
+    cmd_int_description: str = "description port-%s"
 
 
 class Backend(BaseBackend):
-    """Dell OS10 backend interface."""
+    """Network switch backend interface using Netmiko."""
 
     def __init__(self) -> None:
-        """Load properties from 'dellOS10.env'."""
+        """Load backend properties from env file."""
         super(Backend, self).__init__()
-        file_basename = os.path.basename(__file__).split('.')[0]
-        self.configs_dir = file_basename + "_configs"
-        self.backend_settings = BackendSettings(_env_file=(env_file := find_file(self.configs_dir + "/" + file_basename + ".env")))
+        
+        # Get backend name from the filename to make code more portable
+        self.backend_name = os.path.basename(__file__).split('.')[0]
+        self.configs_dir = f"{self.backend_name}_configs"
+        
+        # Load backend settings from environment file
+        env_file = find_file(f"{self.configs_dir}/{self.backend_name}.env")
+        self.backend_settings = BackendSettings(_env_file=env_file)
         self.log.info("Read backend properties", path=str(env_file))
 
-        self.dell_os10_switch = {
-            'device_type': 'dell_os10',
+        # Configure switch connection settings
+        self.switch_config = {
+            'device_type': self.backend_settings.device_type,
             'ip': self.backend_settings.ssh_hostname,
             'port': self.backend_settings.ssh_port,
             'username': self.backend_settings.ssh_username,
             'password': self.backend_settings.ssh_password,
             'use_keys': False,
-            # 'session_log': 'session.log',
             'timeout': 30,
             'keepalive': 30,
         }
-
+        
+        # Store commands for easy access
+        self.commands = {
+            'enable': self.backend_settings.cmd_enable,
+            'configure': self.backend_settings.cmd_configure,
+            'create_vlan': self.backend_settings.cmd_create_vlan,
+            'delete_vlan': self.backend_settings.cmd_delete_vlan,
+            'interface': self.backend_settings.cmd_interface,
+            'mode_access': self.backend_settings.cmd_mode_access,
+            'mode_trunk': self.backend_settings.cmd_mode_trunk,
+            'access_vlan': self.backend_settings.cmd_access_vlan,
+            'trunk_add_vlan': self.backend_settings.cmd_trunk_add_vlan,
+            'trunk_rem_vlan': self.backend_settings.cmd_trunk_rm_vlan,
+            'exit': self.backend_settings.cmd_exit,
+            'commit': self.backend_settings.cmd_commit,
+            'no_shutdown': self.backend_settings.cmd_no_shutdown,
+            'vlan_name': self.backend_settings.cmd_vlan_name,
+            'int_description': self.backend_settings.cmd_int_description,
+        }
 
     def _check_ssh_pass_keys(self) -> None:
+        """Verify SSH authentication credentials."""
         privkey = None
         if self.backend_settings.ssh_private_key_path:
             if os.path.exists(self.backend_settings.ssh_private_key_path):
@@ -119,31 +122,96 @@ class Backend(BaseBackend):
                 raise NsiException(GenericRmError, reason)
 
         if privkey:
-            self.dell_os10_switch["use_keys"] = True
-            self.dell_os10_switch["key_file"] = privkey
+            self.switch_config["use_keys"] = True
+            self.switch_config["key_file"] = privkey
         elif not self.backend_settings.ssh_password:
             raise AssertionError("No keys or password supplied")
 
+    def _create_configure_commands(self, source_port: str, dest_port: str, vlan: int) -> List[str]:
+        """Generate commands to configure VLAN on source and destination ports.
+        
+        Args:
+            source_port: Source port identifier
+            dest_port: Destination port identifier
+            vlan: VLAN number to configure
+            
+        Returns:
+            List of commands to execute
+        """
+        cmds = self.commands
+        
+        # Generate all the commands using the templates
+        createvlan = cmds['create_vlan'] % vlan
+        intsrc = cmds['interface'] % source_port
+        intdst = cmds['interface'] % dest_port
+        modetrunk = cmds['mode_trunk']
+        addvlan = cmds['trunk_add_vlan'] % vlan
+        cmdexit = cmds['exit']
+        vlanname = cmds['vlan_name'] % vlan
+        intsrc_desc = cmds['int_description'] % source_port
+        intdst_desc = cmds['int_description'] % dest_port
+        
+        # Build command sequence
+        commands = [
+            createvlan, vlanname, cmdexit,
+            intsrc, intsrc_desc, modetrunk, addvlan, cmdexit,
+            intdst, intdst_desc, modetrunk, addvlan, cmdexit
+        ]
+        return commands
+
+    def _create_delete_commands(self, source_port: str, dest_port: str, vlan: int) -> List[str]:
+        """Generate commands to remove VLAN from source and destination ports.
+        
+        Args:
+            source_port: Source port identifier
+            dest_port: Destination port identifier
+            vlan: VLAN number to remove
+            
+        Returns:
+            List of commands to execute
+        """
+        cmds = self.commands
+        
+        # Generate all the commands using the templates
+        intsrc = cmds['interface'] % source_port
+        intdst = cmds['interface'] % dest_port
+        remvlan = cmds['trunk_rem_vlan'] % vlan
+        cmdexit = cmds['exit']
+        
+        # Build command sequence
+        commands = [
+            intsrc, remvlan, cmdexit,
+            intdst, remvlan, cmdexit
+        ]
+        return commands
 
     def _send_commands(self, commands: List[str]) -> None:
-        self.log.debug("_send_commands() function with cli list: %r" % commands)
+        """Send commands to the switch via SSH.
+        
+        Args:
+            commands: List of commands to execute
+            
+        Raises:
+            NsiException: If there's an error sending commands
+        """
+        self.log.debug("Sending commands to switch", command_list=commands)
 
         try:
             self._check_ssh_pass_keys()
-            self.log.debug("Send command start")
-            with ConnectHandler(**self.dell_os10_switch) as conn:
+            self.log.debug("Establishing SSH connection")
+            
+            with ConnectHandler(**self.switch_config) as conn:
                 conn.enable()
-                self.log.debug("Starting Config")
+                self.log.debug("Starting configuration")
                 conn.send_config_set(commands)
-                self.log.debug("Finished configuration, saving config.")
-                conn.send_command(COMMAND_COMMIT)
+                self.log.debug("Saving configuration")
+                conn.send_command(self.commands['commit'])
 
         except Exception as exception:
-            self.log.warning("Error sending commands")
-            raise NsiException(GenericRmError, "Error sending commands") from exception
+            self.log.warning("Error sending commands to switch", error=str(exception))
+            raise NsiException(GenericRmError, f"Error sending commands: {str(exception)}") from exception
 
         self.log.debug("Commands successfully committed")
-
 
     def activate(
         self,
@@ -155,15 +223,39 @@ class Backend(BaseBackend):
         dst_vlan: int,
         circuit_id: str,
     ) -> Optional[str]:
-        """Activate resources."""
+        """Activate resources by configuring VLANs on the switch.
+        
+        Args:
+            connection_id: Unique identifier for the connection
+            bandwidth: Required bandwidth in Mbps
+            src_port_id: Source port identifier
+            src_vlan: Source VLAN number
+            dst_port_id: Destination port identifier
+            dst_vlan: Destination VLAN number
+            circuit_id: Circuit identifier
+            
+        Returns:
+            Circuit identifier (generated if not provided)
+            
+        Raises:
+            NsiException: If VLANs don't match
+        """
         self.log.info(
-            "Activate resources in dellOS10 NRM", backend=self.__module__, primitive="activate", connection_id=str(connection_id)
+            f"Activate resources in {self.backend_name} NRM", 
+            backend=self.__module__, 
+            primitive="activate", 
+            connection_id=str(connection_id)
         )
 
-        if not src_vlan == dst_vlan:
+        if src_vlan != dst_vlan:
             raise NsiException(GenericRmError, "VLANs must match")
-        self._send_commands(_create_configure_commands(src_port_id, dst_port_id, dst_vlan))
-        circuit_id = uuid4().urn  # dummy circuit id
+            
+        self._send_commands(self._create_configure_commands(src_port_id, dst_port_id, dst_vlan))
+        
+        # Generate circuit ID if not provided
+        if not circuit_id:
+            circuit_id = uuid4().urn
+            
         self.log.info(
             "Link up",
             src_port_id=src_port_id,
@@ -173,7 +265,6 @@ class Backend(BaseBackend):
             circuit_id=circuit_id,
         )
         return circuit_id
-
 
     def deactivate(
         self,
@@ -185,12 +276,26 @@ class Backend(BaseBackend):
         dst_vlan: int,
         circuit_id: str,
     ) -> Optional[str]:
-        """Deactivate resources."""
+        """Deactivate resources by removing VLANs from the switch.
+        
+        Args:
+            connection_id: Unique identifier for the connection
+            bandwidth: Required bandwidth in Mbps
+            src_port_id: Source port identifier
+            src_vlan: Source VLAN number
+            dst_port_id: Destination port identifier
+            dst_vlan: Destination VLAN number
+            circuit_id: Circuit identifier
+        """
         self.log.info(
-            "Deactivate resources in dellOS10 NRM", backend=self.__module__, primitive="deactivate", connection_id=str(connection_id)
+            f"Deactivate resources in {self.backend_name} NRM", 
+            backend=self.__module__, 
+            primitive="deactivate", 
+            connection_id=str(connection_id)
         )
 
-        self._send_commands(_create_delete_commands(src_port_id, dst_port_id, dst_vlan))
+        self._send_commands(self._create_delete_commands(src_port_id, dst_port_id, dst_vlan))
+        
         self.log.info(
             "Link down",
             src_port_id=src_port_id,
@@ -201,26 +306,53 @@ class Backend(BaseBackend):
         )
         return None
 
-
     def topology(self) -> List[STP]:
-        """Read STPs from yaml file."""
-        self.log.info("get topology from dellOS10 NRM", backend=self.__module__, primitive="topology")
+        """Read STPs from YAML file and convert to STP objects."""
+        self.log.info(f"Get topology from {self.backend_name} NRM", backend=self.__module__, primitive="topology")
 
-        stp_list_file = find_file(self.configs_dir + "/" + self.backend_settings.stps_config)
-        self.log.info("Read STPs config", path=str(stp_list_file))
+        # Find and load the STP configuration file
+        config_path = find_file(f"{self.configs_dir}/{self.backend_settings.stps_config}")
+        
+        # Load and process STPs
+        with open(config_path, "r") as f:
+            stp_configs = yaml.safe_load(f)["stps"]
+            return [self._process_stp_config(config) for config in stp_configs]
+            
+    def _process_stp_config(self, config: dict) -> STP:
+        """Convert a single STP configuration to an STP object.
+        
+        Handles both bidirectional and directional STP configurations.
+        
+        Args:
+            config: STP configuration dictionary
+            
+        Returns:
+            STP object
+        """
+        # Create a copy to avoid modifying the original
+        processed = config.copy()
+        
+        # Process bidirectional STP configuration
+        if "remote_stp" in processed:
+            remote = processed.pop("remote_stp")
+            prefix = remote["prefix_urn"]
+            id = remote["id"]
+            
+            processed["is_alias_in"] = f"{prefix}:{id}:out"
+            processed["is_alias_out"] = f"{prefix}:{id}:in"
+        
+        # Process directional in/out configurations
+        if "remote_stp_in" in processed:
+            remote = processed.pop("remote_stp_in")
+            processed["is_alias_in"] = f"{remote['prefix_urn']}:{remote['id']}"
+            
+        if "remote_stp_out" in processed:
+            remote = processed.pop("remote_stp_out")
+            processed["is_alias_out"] = f"{remote['prefix_urn']}:{remote['id']}"
+        
+        return STP(**processed)
 
-        def _load_stp_from_file(stp_list_file: str) -> List[STP]:
-            with open(stp_list_file, "r") as stps_file:
-                stp_list = [STP(**stp) for stp in yaml.safe_load(stps_file)["stps"]]
-            return stp_list
-
-        stp_list = _load_stp_from_file(stp_list_file)
-        self.log.info("STP list", stp_list=stp_list)
-
-        return stp_list
-
-
-### Not implemented functions, just provide logging. ###
+### Not implemented functions, provide logging only ###
 
     def reserve(
         self,
@@ -233,7 +365,10 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Reserve resources in NRM."""
         self.log.info(
-            "Reserve resources in dellOS10 NRM", backend=self.__module__, primitive="reserve", connection_id=str(connection_id)
+            f"Reserve resources in {self.backend_name} NRM", 
+            backend=self.__module__, 
+            primitive="reserve", 
+            connection_id=str(connection_id)
         )
         return None
 
@@ -249,7 +384,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Reserve timeout resources in NRM."""
         self.log.info(
-            "Reserve timeout resources in dellOS10 NRM",
+            f"Reserve timeout resources in {self.backend_name} NRM",
             backend=self.__module__,
             primitive="reserve_timeout",
             connection_id=str(connection_id),
@@ -268,7 +403,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Reserve commit resources in NRM."""
         self.log.info(
-            "Reserve commit resources in dellOS10 NRM",
+            f"Reserve commit resources in {self.backend_name} NRM",
             backend=self.__module__,
             primitive="reserve_commit",
             connection_id=str(connection_id),
@@ -287,7 +422,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Reserve abort resources in NRM."""
         self.log.info(
-            "Reserve abort resources in dellOS10 NRM",
+            f"Reserve abort resources in {self.backend_name} NRM",
             backend=self.__module__,
             primitive="reserve_abort",
             connection_id=str(connection_id),
@@ -306,7 +441,10 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Provision resources in NRM."""
         self.log.info(
-            "Provision resources in dellOS10 NRM", backend=self.__module__, primitive="provision", connection_id=str(connection_id)
+            f"Provision resources in {self.backend_name} NRM", 
+            backend=self.__module__, 
+            primitive="provision", 
+            connection_id=str(connection_id)
         )
         return None
 
@@ -322,7 +460,10 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Release resources in NRM."""
         self.log.info(
-            "Release resources in dellOS10 NRM", backend=self.__module__, primitive="release", connection_id=str(connection_id)
+            f"Release resources in {self.backend_name} NRM", 
+            backend=self.__module__, 
+            primitive="release", 
+            connection_id=str(connection_id)
         )
         return None
 
@@ -338,6 +479,9 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Terminate resources in NRM."""
         self.log.info(
-            "Terminate resources in dellOS10 NRM", backend=self.__module__, primitive="terminate", connection_id=str(connection_id)
+            f"Terminate resources in {self.backend_name} NRM", 
+            backend=self.__module__, 
+            primitive="terminate", 
+            connection_id=str(connection_id)
         )
         return None
