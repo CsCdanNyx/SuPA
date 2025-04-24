@@ -12,7 +12,7 @@
 #  limitations under the License.
 
 import os
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 import yaml
