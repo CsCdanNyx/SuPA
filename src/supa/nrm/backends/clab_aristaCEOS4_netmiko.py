@@ -38,6 +38,7 @@ class BackendSettings(BaseSettings):
 
     stps_config: str = "stps_config.yml"
 
+
 # parametrized commands
 COMMAND_ENABLE = "enable"
 COMMAND_CONFIGURE = "configure"
@@ -58,6 +59,7 @@ COMMAND_NO_SHUTDOWN = "no shutdown"
 COMMAND_VLAN_NAME = "name %s" % "nsi-supa"
 COMMAND_INT_DESCRIPTION = "description %s" % "nsi-supa's stp."
 
+
 def _create_configure_commands(source_port: str, dest_port: str, vlan: int) -> List[bytes]:
     createvlan = COMMAND_CREATE_VLAN % vlan
     intsrc = COMMAND_INTERFACE % source_port
@@ -65,9 +67,23 @@ def _create_configure_commands(source_port: str, dest_port: str, vlan: int) -> L
     modetrunk = COMMAND_MODE_TRUNK
     addvlan = COMMAND_TRUNK_ADD_VLAN % vlan
     cmdexit = COMMAND_EXIT
-    vlanname= COMMAND_VLAN_NAME
+    vlanname = COMMAND_VLAN_NAME
     intdesc = COMMAND_INT_DESCRIPTION
-    commands = [createvlan, vlanname, cmdexit, intsrc, intdesc, modetrunk, addvlan, cmdexit, intdst, intdesc, modetrunk, addvlan, cmdexit]
+    commands = [
+        createvlan,
+        vlanname,
+        cmdexit,
+        intsrc,
+        intdesc,
+        modetrunk,
+        addvlan,
+        cmdexit,
+        intdst,
+        intdesc,
+        modetrunk,
+        addvlan,
+        cmdexit,
+    ]
     return commands
 
 
@@ -87,30 +103,29 @@ class Backend(BaseBackend):
     def __init__(self) -> None:
         """Load properties from 'clab_aristaCEOS4.env'."""
         super(Backend, self).__init__()
-        file_basename = os.path.basename(__file__).split('.')[0]
+        file_basename = os.path.basename(__file__).split(".")[0]
         self.configs_dir = file_basename + "_configs"
-        self.backend_settings = BackendSettings(_env_file=(env_file := find_file(self.configs_dir + "/" + file_basename + ".env")))
+        self.backend_settings = BackendSettings(
+            _env_file=(env_file := find_file(self.configs_dir + "/" + file_basename + ".env"))
+        )
         self.log.info("Read backend properties", path=str(env_file))
 
         self.arista_eos_switch = {
-            'device_type': 'arista_eos',
-            'ip': self.backend_settings.ssh_hostname,
-            'port': self.backend_settings.ssh_port,
-            'username': self.backend_settings.ssh_username,
-            'password': self.backend_settings.ssh_password,
-            'use_keys': False,
+            "device_type": "arista_eos",
+            "ip": self.backend_settings.ssh_hostname,
+            "port": self.backend_settings.ssh_port,
+            "username": self.backend_settings.ssh_username,
+            "password": self.backend_settings.ssh_password,
+            "use_keys": False,
             # 'session_log': 'session.log',
-            'timeout': 30,
-            'keepalive': 30,
+            "timeout": 30,
+            "keepalive": 30,
         }
-
 
     def _check_ssh_pass_keys(self) -> None:
         privkey = None
         if self.backend_settings.ssh_private_key_path:  # self.public_key_path
-            if os.path.exists(
-                self.backend_settings.ssh_private_key_path
-            ):  # and os.path.exists(self.public_key_path):
+            if os.path.exists(self.backend_settings.ssh_private_key_path):  # and os.path.exists(self.public_key_path):
                 privkey = self.backend_settings.ssh_private_key_path
 
             elif os.path.exists(os.path.expanduser(self.backend_settings.ssh_private_key_path)):
@@ -127,10 +142,7 @@ class Backend(BaseBackend):
         elif not self.backend_settings.ssh_password:
             raise AssertionError("No keys or password supplied")
 
-
-
     def _send_commands(self, commands: List[str]) -> None:
-
         self.log.debug("_send_commands() function with cli list: %r" % commands)
 
         try:
@@ -149,8 +161,6 @@ class Backend(BaseBackend):
 
         self.log.debug("Commands successfully committed")
 
-
-
     def activate(
         self,
         connection_id: UUID,
@@ -163,7 +173,10 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Activate resources."""
         self.log.info(
-            "Activate resources in clab_aristaCEOS4_netmiko NRM", backend=self.__module__, primitive="activate", connection_id=str(connection_id)
+            "Activate resources in clab_aristaCEOS4_netmiko NRM",
+            backend=self.__module__,
+            primitive="activate",
+            connection_id=str(connection_id),
         )
 
         if not src_vlan == dst_vlan:
@@ -180,7 +193,6 @@ class Backend(BaseBackend):
         )
         return circuit_id
 
-
     def deactivate(
         self,
         connection_id: UUID,
@@ -193,7 +205,10 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Deactivate resources."""
         self.log.info(
-            "Deactivate resources in clab_aristaCEOS4_netmiko NRM", backend=self.__module__, primitive="deactivate", connection_id=str(connection_id)
+            "Deactivate resources in clab_aristaCEOS4_netmiko NRM",
+            backend=self.__module__,
+            primitive="deactivate",
+            connection_id=str(connection_id),
         )
 
         self._send_commands(_create_delete_commands(src_port_id, dst_port_id, dst_vlan))
@@ -207,26 +222,17 @@ class Backend(BaseBackend):
         )
         return None
 
-
     def topology(self) -> List[STP]:
         """Read STPs from yaml file."""
-        self.log.info("get topology from clab_aristaCEOS4_netmiko NRM", backend=self.__module__, primitive="topology")
-
-        stp_list_file = find_file(self.configs_dir + "/" + self.backend_settings.stps_config)
-        self.log.info("Read STPs config", path=str(stp_list_file))
 
         def _load_stp_from_file(stp_list_file: str) -> List[STP]:
-            with open(stp_list_file, "r") as stps_file:
-                stp_list = [STP(**stp) for stp in yaml.safe_load(stps_file)["stps"]]
-            return stp_list
+            with open(stp_list_file, "r") as f:
+                stp_list = yaml.safe_load(f)
+                return [STP(**config) for config in stp_list["stps"]]
 
-        stp_list = _load_stp_from_file(stp_list_file)
-        self.log.info("STP list", stp_list=stp_list)
-
-        return stp_list
-
-
-### Not implemented functions, just provide logging. ###
+        # Find and load the STP configuration file
+        config_path = find_file(f"{self.configs_dir}/{self.backend_settings.stps_config}")
+        return _load_stp_from_file(config_path)
 
     def reserve(
         self,
@@ -239,7 +245,10 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Reserve resources in NRM."""
         self.log.info(
-            "Reserve resources in clab_aristaCEOS4_netmiko NRM", backend=self.__module__, primitive="reserve", connection_id=str(connection_id)
+            "Reserve resources in clab_aristaCEOS4_netmiko NRM",
+            backend=self.__module__,
+            primitive="reserve",
+            connection_id=str(connection_id),
         )
         return None
 
@@ -312,7 +321,10 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Provision resources in NRM."""
         self.log.info(
-            "Provision resources in clab_aristaCEOS4_netmiko NRM", backend=self.__module__, primitive="provision", connection_id=str(connection_id)
+            "Provision resources in clab_aristaCEOS4_netmiko NRM",
+            backend=self.__module__,
+            primitive="provision",
+            connection_id=str(connection_id),
         )
         return None
 
@@ -328,7 +340,10 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Release resources in NRM."""
         self.log.info(
-            "Release resources in clab_aristaCEOS4_netmiko NRM", backend=self.__module__, primitive="release", connection_id=str(connection_id)
+            "Release resources in clab_aristaCEOS4_netmiko NRM",
+            backend=self.__module__,
+            primitive="release",
+            connection_id=str(connection_id),
         )
         return None
 
@@ -344,6 +359,9 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Terminate resources in NRM."""
         self.log.info(
-            "Terminate resources in clab_aristaCEOS4_netmiko NRM", backend=self.__module__, primitive="terminate", connection_id=str(connection_id)
+            "Terminate resources in clab_aristaCEOS4_netmiko NRM",
+            backend=self.__module__,
+            primitive="terminate",
+            connection_id=str(connection_id),
         )
         return None

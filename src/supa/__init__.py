@@ -220,6 +220,7 @@ class Settings(BaseSettings):
     def nsa_provider_exposed_url(self) -> str:
         """Return Provider URL that NSA is exposed on constructed from nsa_scheme, nsa_host and nsa_provider_port."""
         return f"{self.nsa_scheme}://{self.nsa_host}:{self.nsa_provider_port}"
+
     class Config:  # noqa: D106
         case_sensitive = True
 
