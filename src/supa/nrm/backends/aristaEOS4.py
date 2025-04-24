@@ -369,7 +369,7 @@ class Backend(BaseBackend):
             return circuit_id
         except Exception as e:
             self.log.error("Failed to activate connection", error=str(e))
-            raise NsiException(GenericRmError, "Failed to activate connection: {}".format(str(e))) from e
+            raise NsiException(GenericRmError, "Failed to activate connection: {0}".format(str(e))) from e
 
     def deactivate(
         self,
@@ -396,7 +396,7 @@ class Backend(BaseBackend):
             "Deactivate resources in {0} NRM".format(self.backend_name),
             backend=self.__module__,
             primitive="deactivate",
-            connection_id=str(connection_id),
+            connection_id=str(connection_id)
         )
 
         self._send_commands(self._create_delete_commands(src_port_id, dst_port_id, dst_vlan))
@@ -459,7 +459,7 @@ class Backend(BaseBackend):
 
         return STP(**processed)
 
-    ### Not implemented functions, provide logging only ###
+    # Not implemented functions, provide logging only
 
     def reserve(
         self,

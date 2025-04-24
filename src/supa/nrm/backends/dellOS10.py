@@ -361,7 +361,7 @@ class Backend(BaseBackend):
 
         return STP(**processed)
 
-    ### Not implemented functions, provide logging only ###
+    # Not implemented functions, provide logging only
 
     def reserve(
         self,
