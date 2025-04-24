@@ -6,7 +6,6 @@ import pytest
 @pytest.fixture(scope="module")
 def backend_testing_vlans_ports() -> Any:
     """Return a list of VLANs and ports for backend testing."""
-
     backend_testing_vlans_ports = {
         # List of ports and VLANs for backend being used actually.
         "src_port_id": "Ethernet 1",
@@ -23,6 +22,7 @@ def backend_testing_vlans_ports() -> Any:
 
 
 def pytest_addoption(parser):
+    """Add command line options for port and VLAN configuration."""
     parser.addoption("--src_port_id", action="store", default="Ethernet 1")
     parser.addoption("--dst_port_id", action="store", default="Ethernet 2")
     parser.addoption("--dst_vlan", action="store", default=1799)
@@ -30,16 +30,19 @@ def pytest_addoption(parser):
 
 @pytest.fixture(scope="module")
 def src_port_id(request):
+    """Return the source port ID from command line options."""
     return request.config.getoption("--src_port_id")
 
 
 @pytest.fixture(scope="module")
 def dst_port_id(request):
+    """Return the destination port ID from command line options."""
     return request.config.getoption("--dst_port_id")
 
 
 @pytest.fixture(scope="module")
 def dst_vlan(request):
+    """Return the destination VLAN from command line options."""
     return request.config.getoption("--dst_vlan")
 
 
@@ -47,5 +50,8 @@ def dst_vlan(request):
 #     # This is called for every test. Only get/set command line arguments
 #     # if the argument is specified in the list of test "fixturenames".
 #     option_value = metafunc.config.option.name
-#     if 'src_port_id' in metafunc.fixturenames and 'dst_port_id' in metafunc.fixturenames and 'dst_vlan' in metafunc.fixturenames and option_value is not None:
+#     if ('src_port_id' in metafunc.fixturenames and
+#         'dst_port_id' in metafunc.fixturenames and
+#         'dst_vlan' in metafunc.fixturenames and
+#         option_value is not None):
 #         metafunc.parametrize("name", [option_value])

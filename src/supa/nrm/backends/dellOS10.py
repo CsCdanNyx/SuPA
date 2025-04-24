@@ -12,12 +12,12 @@
 #  limitations under the License.
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 from uuid import UUID, uuid4
 
 import yaml
 from netmiko import ConnectHandler
-from pydantic import BaseSettings, Field
+from pydantic import BaseSettings
 
 from supa.connection.error import GenericRmError
 from supa.job.shared import NsiException
@@ -216,7 +216,7 @@ class Backend(BaseBackend):
 
         except Exception as exception:
             self.log.warning("Error sending commands to switch", error=str(exception))
-            raise NsiException(GenericRmError, "Error sending commands: {}".format(str(exception))) from exception
+            raise NsiException(GenericRmError, "Error sending commands: {0}".format(str(exception))) from exception
 
         self.log.debug("Commands successfully committed")
 
@@ -248,7 +248,7 @@ class Backend(BaseBackend):
             NsiException: If VLANs don't match
         """
         self.log.info(
-            "Activate resources in {} NRM".format(self.backend_name),
+            "Activate resources in {0} NRM".format(self.backend_name),
             backend=self.__module__,
             primitive="activate",
             connection_id=str(connection_id),
@@ -295,7 +295,7 @@ class Backend(BaseBackend):
             circuit_id: Circuit identifier
         """
         self.log.info(
-            "Deactivate resources in {} NRM".format(self.backend_name),
+            "Deactivate resources in {0} NRM".format(self.backend_name),
             backend=self.__module__,
             primitive="deactivate",
             connection_id=str(connection_id),
@@ -316,7 +316,7 @@ class Backend(BaseBackend):
     def topology(self) -> List[STP]:
         """Read STPs from YAML file and convert to STP objects."""
         self.log.info(
-            "Get topology from {} NRM".format(self.backend_name), backend=self.__module__, primitive="topology"
+            "Get topology from {0} NRM".format(self.backend_name), backend=self.__module__, primitive="topology"
         )
 
         # Find and load the STP configuration file
@@ -345,10 +345,10 @@ class Backend(BaseBackend):
         if "remote_stp" in processed:
             remote = processed.pop("remote_stp")
             prefix = remote["prefix_urn"]
-            id = remote["id"]
+            stp_id = remote["id"]
 
-            processed["is_alias_in"] = f"{prefix}:{id}:out"
-            processed["is_alias_out"] = f"{prefix}:{id}:in"
+            processed["is_alias_in"] = f"{prefix}:{stp_id}:out"
+            processed["is_alias_out"] = f"{prefix}:{stp_id}:in"
 
         # Process directional in/out configurations
         if "remote_stp_in" in processed:
@@ -374,7 +374,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Reserve resources in NRM."""
         self.log.info(
-            "Reserve resources in {} NRM".format(self.backend_name),
+            "Reserve resources in {0} NRM".format(self.backend_name),
             backend=self.__module__,
             primitive="reserve",
             connection_id=str(connection_id),
@@ -393,7 +393,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Reserve timeout resources in NRM."""
         self.log.info(
-            "Reserve timeout resources in {} NRM".format(self.backend_name),
+            "Reserve timeout resources in {0} NRM".format(self.backend_name),
             backend=self.__module__,
             primitive="reserve_timeout",
             connection_id=str(connection_id),
@@ -412,7 +412,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Reserve commit resources in NRM."""
         self.log.info(
-            "Reserve commit resources in {} NRM".format(self.backend_name),
+            "Reserve commit resources in {0} NRM".format(self.backend_name),
             backend=self.__module__,
             primitive="reserve_commit",
             connection_id=str(connection_id),
@@ -431,7 +431,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Reserve abort resources in NRM."""
         self.log.info(
-            "Reserve abort resources in {} NRM".format(self.backend_name),
+            "Reserve abort resources in {0} NRM".format(self.backend_name),
             backend=self.__module__,
             primitive="reserve_abort",
             connection_id=str(connection_id),
@@ -450,7 +450,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Provision resources in NRM."""
         self.log.info(
-            "Provision resources in {} NRM".format(self.backend_name),
+            "Provision resources in {0} NRM".format(self.backend_name),
             backend=self.__module__,
             primitive="provision",
             connection_id=str(connection_id),
@@ -469,7 +469,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Release resources in NRM."""
         self.log.info(
-            "Release resources in {} NRM".format(self.backend_name),
+            "Release resources in {0} NRM".format(self.backend_name),
             backend=self.__module__,
             primitive="release",
             connection_id=str(connection_id),
@@ -488,7 +488,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Terminate resources in NRM."""
         self.log.info(
-            "Terminate resources in {} NRM".format(self.backend_name),
+            "Terminate resources in {0} NRM".format(self.backend_name),
             backend=self.__module__,
             primitive="terminate",
             connection_id=str(connection_id),
