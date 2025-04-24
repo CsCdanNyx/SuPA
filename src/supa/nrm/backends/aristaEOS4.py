@@ -290,7 +290,7 @@ class Backend(BaseBackend):
 
             self.log.debug("Entered configure mode")
             for cmd in commands:
-                self.log.debug(f"Command: {cmd}")
+                self.log.debug("Command: {}".format(cmd))
                 self.channel.send(cmd + line_termination)
                 while not line.decode("utf-8").endswith(")#"):
                     resp = self.channel.recv(999)
@@ -316,7 +316,7 @@ class Backend(BaseBackend):
         except Exception as exception:
             self._close_ssh_shell()
             self.log.warning("Error sending commands", exception=str(exception))
-            raise NsiException(GenericRmError, f"Error sending commands: {str(exception)}") from exception
+            raise NsiException(GenericRmError, "Error sending commands: {}".format(str(exception))) from exception
 
         self._close_ssh_shell()
         self.log.debug("Commands successfully committed")
@@ -349,7 +349,7 @@ class Backend(BaseBackend):
             NsiException: If VLANs don't match
         """
         self.log.info(
-            f"Activate resources in {self.backend_name} NRM",
+            "Activate resources in {} NRM".format(self.backend_name), 
             backend=self.__module__,
             primitive="activate",
             connection_id=str(connection_id)
@@ -376,7 +376,7 @@ class Backend(BaseBackend):
             return circuit_id
         except Exception as e:
             self.log.error("Failed to activate connection", error=str(e))
-            raise NsiException(GenericRmError, f"Failed to activate connection: {str(e)}") from e
+            raise NsiException(GenericRmError, "Failed to activate connection: {}".format(str(e))) from e
 
     def deactivate(
         self,
@@ -400,7 +400,7 @@ class Backend(BaseBackend):
             circuit_id: Circuit identifier
         """
         self.log.info(
-            f"Deactivate resources in {self.backend_name} NRM",
+            "Deactivate resources in {} NRM".format(self.backend_name),
             backend=self.__module__,
             primitive="deactivate",
             connection_id=str(connection_id)
@@ -420,7 +420,7 @@ class Backend(BaseBackend):
 
     def topology(self) -> List[STP]:
         """Read STPs from YAML file and convert to STP objects."""
-        self.log.info(f"Get topology from {self.backend_name} NRM", backend=self.__module__, primitive="topology")
+        self.log.info("Get topology from {} NRM".format(self.backend_name), backend=self.__module__, primitive="topology")
 
         # Find and load the STP configuration file
         config_path = find_file(f"{self.configs_dir}/{self.backend_settings.stps_config}")
@@ -477,7 +477,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Reserve resources in NRM."""
         self.log.info(
-            f"Reserve resources in {self.backend_name} NRM",
+            "Reserve resources in {} NRM".format(self.backend_name),
             backend=self.__module__,
             primitive="reserve",
             connection_id=str(connection_id)
@@ -496,7 +496,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Reserve timeout resources in NRM."""
         self.log.info(
-            f"Reserve timeout resources in {self.backend_name} NRM",
+            "Reserve timeout resources in {} NRM".format(self.backend_name),
             backend=self.__module__,
             primitive="reserve_timeout",
             connection_id=str(connection_id),
@@ -515,7 +515,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Reserve commit resources in NRM."""
         self.log.info(
-            f"Reserve commit resources in {self.backend_name} NRM",
+            "Reserve commit resources in {} NRM".format(self.backend_name),
             backend=self.__module__,
             primitive="reserve_commit",
             connection_id=str(connection_id),
@@ -534,7 +534,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Reserve abort resources in NRM."""
         self.log.info(
-            f"Reserve abort resources in {self.backend_name} NRM",
+            "Reserve abort resources in {} NRM".format(self.backend_name),
             backend=self.__module__,
             primitive="reserve_abort",
             connection_id=str(connection_id),
@@ -553,7 +553,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Provision resources in NRM."""
         self.log.info(
-            f"Provision resources in {self.backend_name} NRM",
+            "Provision resources in {} NRM".format(self.backend_name),
             backend=self.__module__,
             primitive="provision",
             connection_id=str(connection_id)
@@ -572,7 +572,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Release resources in NRM."""
         self.log.info(
-            f"Release resources in {self.backend_name} NRM",
+            "Release resources in {} NRM".format(self.backend_name),
             backend=self.__module__,
             primitive="release",
             connection_id=str(connection_id)
@@ -591,7 +591,7 @@ class Backend(BaseBackend):
     ) -> Optional[str]:
         """Terminate resources in NRM."""
         self.log.info(
-            f"Terminate resources in {self.backend_name} NRM",
+            "Terminate resources in {} NRM".format(self.backend_name),
             backend=self.__module__,
             primitive="terminate",
             connection_id=str(connection_id)
