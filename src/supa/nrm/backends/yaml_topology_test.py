@@ -102,21 +102,50 @@ class Backend(BaseBackend):
 
 
     def topology(self) -> List[STP]:
-        """Read STPs from yaml file."""
-        self.log.info("get topology from yaml_topology_test NRM", backend=self.__module__, primitive="topology")
+        """Read STPs from YAML file and convert to STP objects."""
+        self.log.info(f"Get topology from yaml_topology_test NRM", backend=self.__module__, primitive="topology")
 
-        stp_list_file = find_file(self.configs_dir + "/" + self.backend_settings.stps_config)
-        self.log.info("Read STPs config", path=str(stp_list_file))
+        # Find and load the STP configuration file
+        config_path = find_file(f"{self.configs_dir}/{self.backend_settings.stps_config}")
 
-        def _load_stp_from_file(stp_list_file: str) -> List[STP]:
-            with open(stp_list_file, "r") as stps_file:
-                stp_list = [STP(**stp) for stp in yaml.safe_load(stps_file)["stps"]]
-            return stp_list
+        # Load and process STPs
+        with open(config_path, "r") as f:
+            stp_configs = yaml.safe_load(f)["stps"]
+            return [self._process_stp_config(config) for config in stp_configs]
 
-        stp_list = _load_stp_from_file(stp_list_file)
-        self.log.info("STP list", stp_list=stp_list)
+    def _process_stp_config(self, config: dict) -> STP:
+        """Convert a single STP configuration to an STP object.
 
-        return stp_list
+        Handles both bidirectional and directional STP configurations.
+
+        Args:
+            config: STP configuration dictionary
+
+        Returns:
+            STP object
+        """
+        # Create a copy to avoid modifying the original
+        processed = config.copy()
+
+        # Process bidirectional STP configuration
+        if "remote_stp" in processed:
+            remote = processed.pop("remote_stp")
+            prefix = remote["prefix_urn"]
+            id = remote["id"]
+
+            processed["is_alias_in"] = f"{prefix}:{id}:out"
+            processed["is_alias_out"] = f"{prefix}:{id}:in"
+
+        # Process directional in/out configurations
+        if "remote_stp_in" in processed:
+            remote = processed.pop("remote_stp_in")
+            processed["is_alias_in"] = f"{remote['prefix_urn']}:{remote['id']}"
+
+        if "remote_stp_out" in processed:
+            remote = processed.pop("remote_stp_out")
+            processed["is_alias_out"] = f"{remote['prefix_urn']}:{remote['id']}"
+
+        return STP(**processed)
 
 
 ### Not implemented functions, just provide logging. ###
