@@ -73,7 +73,7 @@ class Backend(BaseBackend):
         self.configs_dir = f"{self.backend_name}_configs"
 
         # Load backend settings from environment file
-        env_file = find_file(f"{self.configs_dir}/{self.backend_name}.env")
+        env_file = find_file(f"src/supa/nrm/backends/{self.configs_dir}/{self.backend_name}.env")
         self.backend_settings = BackendSettings(_env_file=env_file)
         self.log.info("Read backend properties", path=str(env_file))
 
