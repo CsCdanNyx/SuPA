@@ -25,60 +25,59 @@ from supa.nrm.backend import STP, BaseBackend
 from supa.util.find import find_file
 
 
-# class BackendSettings(BaseSettings):
-#     """Backend settings with default values."""
+class BackendSettings(BaseSettings):
+    """Backend settings with default values."""
 
-#     # SSH connection settings
-#     ssh_hostname: str = "localhost"
-#     ssh_port: int = 22
-#     ssh_host_fingerprint: str = ""
-#     ssh_username: str = ""
-#     ssh_password: str = ""
-#     ssh_private_key_path: str = ""
-#     ssh_public_key_path: str = ""
+    # SSH connection settings
+    ssh_hostname: str = "localhost"
+    ssh_port: int = 22
+    ssh_host_fingerprint: str = ""
+    ssh_username: str = ""
+    ssh_password: str = ""
+    ssh_private_key_path: str = ""
+    ssh_public_key_path: str = ""
 
-#     # Configuration files
-#     stps_config: str = "stps_config.yml"
+    # Configuration files
+    stps_config: str = "stps_config.yml"
 
-#     # Switch type settings
-#     device_type: str = "dell_os10"
+    # Switch type settings
+    device_type: str = "dell_os10"
 
-#     # Command templates - these can be overridden in the env file for different switches
-#     cmd_enable: str = "enable"
-#     cmd_configure: str = "configure"
-#     cmd_create_vlan: str = "interface vlan %i"
-#     cmd_delete_vlan: str = "no interface vlan %i"
-#     cmd_interface: str = "interface ethernet %s"
-#     cmd_mode_access: str = "switchport mode access"
-#     cmd_mode_trunk: str = "switchport mode trunk"
-#     cmd_access_vlan: str = "switchport access vlan %i"
-#     cmd_trunk_add_vlan: str = "switchport trunk allowed vlan %i"
-#     cmd_trunk_rm_vlan: str = "no switchport trunk allowed vlan %i"
-#     cmd_exit: str = "exit"
-#     cmd_commit: str = "write"  # "copy running-config startup-config" on some platforms
-#     cmd_no_shutdown: str = "no shutdown"
-#     cmd_vlan_name: str = "description vlan-%i"
-#     cmd_int_description: str = "description port-%s"
+    # Command templates - these can be overridden in the env file for different switches
+    cmd_enable: str = "enable"
+    cmd_configure: str = "configure"
+    cmd_create_vlan: str = "interface vlan %i"
+    cmd_delete_vlan: str = "no interface vlan %i"
+    cmd_interface: str = "interface ethernet %s"
+    cmd_mode_access: str = "switchport mode access"
+    cmd_mode_trunk: str = "switchport mode trunk"
+    cmd_access_vlan: str = "switchport access vlan %i"
+    cmd_trunk_add_vlan: str = "switchport trunk allowed vlan %i"
+    cmd_trunk_rm_vlan: str = "no switchport trunk allowed vlan %i"
+    cmd_exit: str = "exit"
+    cmd_commit: str = "write"  # "copy running-config startup-config" on some platforms
+    cmd_no_shutdown: str = "no shutdown"
+    cmd_vlan_name: str = "description vlan-%i"
+    cmd_int_description: str = "description port-%s"
 
 # backend_settings = BackendSettings(_env_file="src/supa/nrm/backends/dellOS10_configs/dellOS10.env")  # type: ignore[call-arg]
 
 class Backend(BaseBackend):
     """Network switch backend interface using Netmiko."""
 
-    # def __init__(self) -> None:
-    #     """Load backend properties from env file."""
-    #     super(Backend, self).__init__()
+    def __init__(self) -> None:
+        """Load backend properties from env file."""
+        super(Backend, self).__init__()
 
-    #     # Get backend name from the filename to make code more portable
-    #     self.backend_name = os.path.basename(__file__).split(".")[0]
-    #     self.configs_dir = f"{self.backend_name}_configs"
+        # Get backend name from the filename to make code more portable
+        self.backend_name = os.path.basename(__file__).split(".")[0]
+        self.configs_dir = f"{self.backend_name}_configs"
 
-    #     # Load backend settings from environment file
-    #    self.log.info("Loading backend settings from environment file")
-    #     self.log.debug("Loading backend settings from environment file", path=f"src/supa/nrm/backends/{self.configs_dir}/{self.backend_name}.env")
-    #     # env_file = find_file(f"src/supa/nrm/backends/{self.configs_dir}/{self.backend_name}.env")
-    #     self.backend_settings = BackendSettings(_env_file=env_file)
-    #     self.log.info("Read backend properties", path=str(env_file))
+        # Load backend settings from environment file
+        self.log.debug("Loading backend settings from environment file", path=f"src/supa/nrm/backends/{self.configs_dir}/{self.backend_name}.env")
+        env_file = find_file(f"src/supa/nrm/backends/{self.configs_dir}/{self.backend_name}.env")
+        self.backend_settings = BackendSettings(_env_file=env_file)
+        self.log.info("Read backend properties", path=str(env_file))
 
     #     # Configure switch connection settings
     #     self.switch_config = {
