@@ -124,6 +124,7 @@ class Backend(BaseBackend):
         env_file = find_file(f"{self.configs_dir}/{self.backend_name}.env")
         self.backend_settings = BackendSettings(_env_file=env_file)
         self.log.info("Read backend properties", path=str(env_file))
+        self.log.debug(f"Loaded backend settings: {self.backend_settings.dict()}")
 
         # Store commands for easy access
         self.commands = {
