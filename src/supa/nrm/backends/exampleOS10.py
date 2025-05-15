@@ -23,6 +23,7 @@ from supa.nrm.backend import BaseBackend
 
 # from supa.nrm.backend import STP
 
+from supa.util.find import find_file
 
 class BackendSettings(BaseSettings):
     """Backend settings with default values.
