@@ -475,8 +475,10 @@ def init_app(with_scheduler: bool = True) -> None:
         logger.debug("backend import path", path=sys.path)
         try:
             supa.nrm.backend.backend = __import__(settings.backend).Backend()
-        except ModuleNotFoundError:
-            logger.warn("cannot find NRM backend module", backend=settings.backend)
+        except ModuleNotFoundError as e:
+            logger.warn(f"Error loading backend module: {e}", backend=settings.backend)
+        except Exception as e:
+            logger.warn(f"Unexpected error loading backend: {e.__class__.__name__}: {e}", backend=settings.backend)
         else:
             supa.nrm.backend.backend.log = supa.nrm.backend.backend.log.bind(backend=settings.backend)
             logger.info("successfully loaded NRM backend", backend=settings.backend)
