@@ -499,3 +499,28 @@ class Backend(BaseBackend):
             connection_id=str(connection_id),
         )
         return None
+
+    def health_check(
+        self,
+        connection_id: UUID,
+        bandwidth: int,
+        src_port_id: str,
+        src_vlan: int,
+        dst_port_id: str,
+        dst_vlan: int,
+        circuit_id: str,
+    ) -> bool:
+        """Check if the connection/circuit is healthy in NRM.
+
+        Be careful with declaring a connection not healthy,
+        this will cause the connection lifecycle statemachine to transition to failed,
+        which is an unrecoverable state.
+        """
+        self.log.debug(
+            "Health check resources in {0} NRM".format(self.backend_name),
+            backend=self.__module__,
+            primitive="health_check",
+            connection_id=str(connection_id),
+        )
+        return True
+    
