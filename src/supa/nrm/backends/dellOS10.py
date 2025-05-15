@@ -17,7 +17,7 @@ from uuid import UUID, uuid4
 
 import yaml
 from netmiko import ConnectHandler
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 from supa.connection.error import GenericRmError
 from supa.job.shared import NsiException
@@ -60,6 +60,7 @@ class BackendSettings(BaseSettings):
     cmd_vlan_name: str = "description vlan-%i"
     cmd_int_description: str = "description port-%s"
 
+backend_settings = BackendSettings(_env_file="src/supa/nrm/backends/dellOS10_configs/dellOS10.env")  # type: ignore[call-arg]
 
 class Backend(BaseBackend):
     """Network switch backend interface using Netmiko."""
@@ -73,7 +74,7 @@ class Backend(BaseBackend):
     #     self.configs_dir = f"{self.backend_name}_configs"
 
     #     # Load backend settings from environment file
-        self.log.debug("Loading backend settings from environment file")
+        self.log.info("Loading backend settings from environment file")
     #     self.log.debug("Loading backend settings from environment file", path=f"src/supa/nrm/backends/{self.configs_dir}/{self.backend_name}.env")
     #     # env_file = find_file(f"src/supa/nrm/backends/{self.configs_dir}/{self.backend_name}.env")
     #     self.backend_settings = BackendSettings(_env_file=env_file)
