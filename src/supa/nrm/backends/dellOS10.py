@@ -76,7 +76,8 @@ class Backend(BaseBackend):
         env_file = find_file(f"{self.configs_dir}/{self.backend_name}.env")
         self.backend_settings = BackendSettings(_env_file=env_file)
         self.log.info("Read backend properties", path=str(env_file))
-
+        self.log.debug(f"Loaded settings: {self.backend_settings.dict()}")
+        
         # Configure switch connection settings
         self.switch_config = {
             "device_type": self.backend_settings.device_type,
@@ -89,6 +90,8 @@ class Backend(BaseBackend):
             "keepalive": 30,
         }
 
+        self.log.debug(f"Switch config: {self.switch_config}")
+        
         # Store commands for easy access
         self.commands = {
             "enable": self.backend_settings.cmd_enable,
@@ -107,6 +110,8 @@ class Backend(BaseBackend):
             "vlan_name": self.backend_settings.cmd_vlan_name,
             "int_description": self.backend_settings.cmd_int_description,
         }
+        
+        
 
     def _check_ssh_pass_keys(self) -> None:
         """Verify SSH authentication credentials."""
