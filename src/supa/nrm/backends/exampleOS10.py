@@ -34,7 +34,7 @@ class BackendSettings(BaseSettings):
     target_port: int = 80
 
 
-backend_settings = BackendSettings(_env_file="src/supa/nrm/backends/dellOS10_configs/example.env")  # type: ignore[call-arg]
+# backend_settings = BackendSettings(_env_file="src/supa/nrm/backends/dellOS10_configs/example.env")  # type: ignore[call-arg]
 
 
 class Backend(BaseBackend):
@@ -42,6 +42,10 @@ class Backend(BaseBackend):
 
     Only implement the calls that are needed to interface with the NRM.
     """
+    def __init__(self) -> None:
+        super(Backend, self).__init__()
+        self.log.info("Loading exampleOS10 backend")
+        self.backend_settings = BackendSettings(_env_file=(env_file := find_file("dellOS10_configs/example.env")))  # type: ignore[call-arg]
 
     # def reserve(
     #     self,

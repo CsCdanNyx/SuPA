@@ -65,16 +65,16 @@ backend_settings = BackendSettings(_env_file="src/supa/nrm/backends/dellOS10_con
 class Backend(BaseBackend):
     """Network switch backend interface using Netmiko."""
 
-    def __init__(self) -> None:
-        """Load backend properties from env file."""
-        super(Backend, self).__init__()
+    # def __init__(self) -> None:
+    #     """Load backend properties from env file."""
+    #     super(Backend, self).__init__()
 
     #     # Get backend name from the filename to make code more portable
     #     self.backend_name = os.path.basename(__file__).split(".")[0]
     #     self.configs_dir = f"{self.backend_name}_configs"
 
     #     # Load backend settings from environment file
-        self.log.info("Loading backend settings from environment file")
+    #    self.log.info("Loading backend settings from environment file")
     #     self.log.debug("Loading backend settings from environment file", path=f"src/supa/nrm/backends/{self.configs_dir}/{self.backend_name}.env")
     #     # env_file = find_file(f"src/supa/nrm/backends/{self.configs_dir}/{self.backend_name}.env")
     #     self.backend_settings = BackendSettings(_env_file=env_file)
