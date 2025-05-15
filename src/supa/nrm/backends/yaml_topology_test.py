@@ -16,7 +16,7 @@ from typing import List, Optional
 from uuid import UUID, uuid4
 
 import yaml
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 from supa.connection.error import GenericRmError
 from supa.job.shared import NsiException

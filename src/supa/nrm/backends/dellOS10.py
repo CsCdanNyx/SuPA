@@ -17,7 +17,7 @@ from uuid import UUID, uuid4
 
 import yaml
 from netmiko import ConnectHandler
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 from supa.connection.error import GenericRmError
 from supa.job.shared import NsiException
