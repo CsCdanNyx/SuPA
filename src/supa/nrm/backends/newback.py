@@ -4,7 +4,6 @@ from typing import List, Optional
 from uuid import UUID, uuid4
 
 import yaml
-from netmiko import ConnectHandler
 from pydantic_settings import BaseSettings
 
 from supa.connection.error import GenericRmError
